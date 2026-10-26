@@ -181,7 +181,6 @@ export function Settings({ rerunSetup }: { rerunSetup: () => void }) {
       <section className="card col"><h2>Timing calibration</h2><Calibration /></section>
       <section className="card col">
         <h2>Learning</h2>
-        <label className="row" style={{ gap: 6 }}><input type="checkbox" checked={st.unlockAll} onChange={(e) => settings.set({ unlockAll: e.target.checked })} /> Unlock all lessons (skip ahead if you already know the basics)</label>
         <div className="row">
           <button className="btn small" onClick={rerunSetup}>Run first-time setup again</button>
           <button className="btn small danger" onClick={() => { if (confirm('Erase all lesson progress and practice history? Your compositions are kept.')) progress.set({ lessons: {}, days: {}, improvisations: 0 }) }}>Reset progress</button>

@@ -96,6 +96,32 @@ export function encodingFor(cc: number, mode: CCMode): Encoding {
 export interface LearnState { armed: Target | null; queue: Target[]; used: number[] }
 /** The one-go MiniLab setup: knobs 1–8 → the 4 macros, then 4 effects. */
 export const WIZARD: Target[] = ['brightness', 'timbre', 'time', 'movement', 'reverbMix', 'delayMix', 'chorus', 'drive']
+/** What the MiniLab's 4 faders drive, after the 8 knobs. */
+export const FADERS: Target[] = ['reverbDecay', 'cutoff', 'keysVol', 'master']
+export const HARDWARE: Target[] = [...WIZARD, ...FADERS]
+// MiniLab 3 factory CCs: knobs 1–8 then faders 1–4.
+// shortcut: taken from Arturia's docs, not checked on a device; an unknown CC still auto-assigns below.
+export const MINILAB_CCS = [74, 71, 76, 77, 93, 18, 19, 16, 82, 83, 85, 17]
+
+/** Last hardware move, for the on-screen readout ("Reverb time 3.2 s"). */
+let lastMove: { target: Target; at: number } | null = null
+const moveSubs = new Set<() => void>()
+export const moves = {
+  get: () => lastMove,
+  subscribe: (f: () => void) => { moveSubs.add(f); return () => { moveSubs.delete(f) } },
+}
+const moved = (target: Target) => { lastMove = { target, at: performance.now() }; moveSubs.forEach((f) => f()) }
+
+/**
+ * A knob nobody assigned yet: its MiniLab factory slot if that slot is free, otherwise the next free control
+ * in hardware order. Knobs work out of the box; MIDI learn is only for changing them.
+ */
+export function autoTarget(cc: number, map: Record<number, { target: Target }>): Target | null {
+  const used = new Set(Object.values(map).map((m) => m.target))
+  const factory = HARDWARE[MINILAB_CCS.indexOf(cc)]
+  if (factory && !used.has(factory)) return factory
+  return HARDWARE.find((t) => !used.has(t)) ?? null
+}
 
 let learnState: LearnState = { armed: null, queue: [], used: [] }
 const learnSubs = new Set<() => void>()
@@ -131,12 +157,18 @@ export function handleCC(cc: number, raw: number) {
     learn.set(L.queue.length ? { armed: L.queue[0], queue: L.queue.slice(1), used: [...L.used, cc] } : { armed: null, queue: [], used: [] })
     return
   }
-  const m = ccMap.get().map[cc]
-  if (!m) return
+  let m = ccMap.get().map[cc]
+  if (!m) {
+    const t = autoTarget(cc, ccMap.get().map)
+    if (!t) return
+    mapCC(cc, t)
+    m = ccMap.get().map[cc]
+  }
   const t = m.target, cur = getParam(t), prev = toNorm(t, cur)
   const n = decodeCC(prev, raw, encodingFor(cc, m.mode))
   if (n === null) return
   let v = fromNorm(t, n)
   if (v === cur && n !== prev && spec(t).curve === 'int') v = clampParam(t, cur + Math.sign(n - prev)) // one detent moves a stepped param
   if (v !== cur) setParam(t, v)
+  moved(t)
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { identifyChord, intervalName, noteNameOct, romanNumeral, parseKey } from '../src/music/theory'
-import { voicing } from '../src/ui/Explore'
+import { chordDrill, scaleRun, voicing } from '../src/ui/Explore'
 
 describe('theory', () => {
   it('names notes with octaves (60 = C4)', () => {
@@ -30,5 +30,22 @@ describe('theory', () => {
       expect(Math.min(...v)).toBeGreaterThanOrEqual(48)
       expect(Math.max(...v)).toBeLessThanOrEqual(72)
     }
+  })
+})
+
+describe('Explore drills', () => {
+  it('scale runs go up and back down and fit the 25 keys for every root and scale', () => {
+    expect(scaleRun(0, 'major')).toEqual([60, 62, 64, 65, 67, 69, 71, 72, 71, 69, 67, 65, 64, 62, 60])
+    for (let r = 0; r < 12; r++) for (const s of ['major', 'natural minor', 'blues']) {
+      const run = scaleRun(r, s)
+      expect(Math.min(...run)).toBeGreaterThanOrEqual(48)
+      expect(Math.max(...run)).toBeLessThanOrEqual(72)
+    }
+  })
+  it('chord drill: two blocks, the arpeggio, then the held chord', () => {
+    const d = chordDrill([60, 64, 67])
+    expect(d.filter((n) => n.start === 0).map((n) => n.pitch)).toEqual([60, 64, 67])
+    expect(d.filter((n) => n.dur === 1).map((n) => n.start)).toEqual([4, 5, 6])
+    expect(Math.max(...d.map((n) => n.start + n.dur))).toBe(11)
   })
 })

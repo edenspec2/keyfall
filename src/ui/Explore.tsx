@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { audio } from '../audio/audioEngine'
 import { midi } from '../midi/midiInput'
 import { guessKey, identifyChord, noteName, pc, SCALES, scalePcs, SHARP_NAMES } from '../music/theory'
+import type { Lesson, NoteEvent } from '../music/types'
 import { displayRange, type Scene } from '../render/pianoRenderer'
 import { settings, useStore } from '../store/store'
 import { useHeld } from './hooks'
@@ -31,7 +32,24 @@ export function voicing(root: number, iv: number[], inv: number): number[] {
   return v.map((p) => p + shift)
 }
 
-export function Explore() {
+// Demo playback: notes fall for DEMO_BEATS beats before they sound, so they land on the keys as you hear them.
+const DEMO_SPB = 0.5, DEMO_BEATS = 4
+
+/** The scale one octave up and back down, one note per beat. */
+export function scaleRun(rootPc: number, scale: string): number[] {
+  const base = rootPc === 0 ? 60 : 48 + rootPc // the full octave must fit the 25 keys (48–72)
+  const up = [...SCALES[scale].map((i) => base + i), base + 12]
+  return [...up, ...up.slice(0, -1).reverse()]
+}
+
+/** A chord drill: two block chords, the arpeggio up, then the block chord held. */
+export function chordDrill(chord: number[]): NoteEvent[] {
+  const block = (start: number, dur: number) => chord.map((pitch) => ({ pitch, start, dur, hand: 'R' as const }))
+  const n = chord.length
+  return [...block(0, 2), ...block(2, 2), ...chord.map((pitch, i) => ({ pitch, start: 4 + i, dur: 1, hand: 'R' as const })), ...block(4 + n, 4)]
+}
+
+export function Explore({ onPractice }: { onPractice: (l: Lesson) => void }) {
   const st = useStore(settings)
   const held = useHeld()
   const [root, setRoot] = useState(0)
@@ -44,24 +62,42 @@ export function Explore() {
   const range = displayRange(dlo, dhi)
   const scaleSet = scalePcs(root, scale)
 
+  const demo = useRef<{ notes: NoteEvent[]; t0: number; end: number } | null>(null)
   const play = async (pitches: number[], arpeggio = false) => {
     await audio.start()
-    const t = audio.now() + 0.05
-    pitches.forEach((p, i) => audio.schedule(p, t + (arpeggio ? i * 0.22 : 0), arpeggio ? 0.4 : 1.4, 78))
+    const notes: NoteEvent[] = pitches.map((pitch, i) => ({ pitch, start: arpeggio ? i : 0, dur: arpeggio ? 1 : 3, hand: 'R' }))
+    const t0 = audio.now() + DEMO_BEATS * DEMO_SPB
+    for (const n of notes) audio.schedule(n.pitch, t0 + n.start * DEMO_SPB, n.dur * DEMO_SPB * 0.95, 78)
+    demo.current = { notes, t0, end: Math.max(...notes.map((n) => n.start + n.dur)) }
     setLit(pitches)
-    setTimeout(() => setLit([]), (arpeggio ? pitches.length * 220 : 0) + 1400)
-  }
-  const scaleNotes = () => {
-    const base = 60 + root - (root > 6 ? 12 : 0)
-    const up = [...SCALES[scale].map((i) => base + i), base + 12]
-    return up
+    setTimeout(() => setLit([]), (DEMO_BEATS + demo.current.end) * DEMO_SPB * 1000)
   }
   const chord = voicing(root, CHORD_TYPES[chordType].iv, inv)
   const chordInfo = identifyChord(chord)
 
-  const scene = (): Scene => ({
-    beat: 0, notes: [], userHands: 'none', range, held: midi.held, labels: st.labels, beatsVisible: 6, beatsPerBar: 4, trails,
-    highlightPcs: showScale ? scaleSet : undefined, pending: lit, pads: true, padHits,
+  const scene = (): Scene => {
+    const d = demo.current
+    const beat = d ? (audio.heard(performance.now()) - d.t0) / DEMO_SPB : 0
+    if (d && beat > d.end + 1) demo.current = null
+    return {
+      beat, notes: d?.notes ?? [], userHands: 'none', range, held: midi.held, labels: st.labels, beatsVisible: DEMO_BEATS, beatsPerBar: 4, trails,
+      highlightPcs: showScale ? scaleSet : undefined, pending: lit, pads: true, padHits,
+    }
+  }
+  const key = `${SHARP_NAMES[root]} ${/minor|blues|dorian/.test(scale) ? 'minor' : 'major'}`
+  const practiceScale = () => onPractice({
+    id: `explore-scale-${root}-${scale}`, stage: 3, kind: 'play', title: `${SHARP_NAMES[root]} ${scale} scale`,
+    goal: 'Play the scale up and back down, one note per beat.',
+    intro: [`The notes are ${scaleSet.map((p) => noteName(p)).join(' · ')}. Start in Wait mode to find them, then Rhythm mode to play them evenly.`],
+    bpm: 70, timeSig: [4, 4], hands: 'R', key, scale: scaleSet, pass: { minAccuracy: 0.9, minTiming: 0.7 },
+    notes: scaleRun(root, scale).map((pitch, i) => ({ pitch, start: i, dur: 1, hand: 'R' })),
+  })
+  const practiceChord = () => onPractice({
+    id: `explore-chord-${root}-${chordType}-${inv}`, stage: 4, kind: 'play', title: `${chordInfo?.name ?? 'Chord'} chord`,
+    goal: 'Play the chord with all keys together, then break it up note by note.',
+    intro: [`${chord.map((p) => noteName(p)).join(' – ')}${chordInfo ? ` (${chordInfo.quality}, ${chordInfo.inversion})` : ''}. In Wait mode the music waits until every key of the chord is down at once.`],
+    bpm: 70, timeSig: [4, 4], hands: 'R', key, pass: { minAccuracy: 0.9, minTiming: 0.7 },
+    notes: chordDrill(chord),
   })
   const heldKey = guessKey([...new Set(held.map(pc))])
 
@@ -86,7 +122,7 @@ export function Explore() {
               </div>
               <p className="sub">{scaleSet.map((p) => noteName(p)).join(' · ')}</p>
               <p className="sub" style={{ fontSize: '0.85rem' }}>Steps: {SCALES[scale].concat(12).slice(1).map((v, i) => (v - SCALES[scale].concat(12)[i] === 1 ? 'H' : v - SCALES[scale].concat(12)[i] === 2 ? 'W' : `${v - SCALES[scale].concat(12)[i]}`)).join(' ')} (W = whole step, H = half step)</p>
-              <div className="row"><button className="btn small" onClick={() => void play(scaleNotes(), true)}>▶ Hear it</button></div>
+              <div className="row"><button className="btn small" onClick={() => void play(scaleRun(root, scale), true)}>▶ Hear it</button><button className="btn small primary" onClick={practiceScale}>Practice it</button></div>
             </div>
             <div className="card col" style={{ flex: 1, minWidth: 260 }}>
               <h3>Chord builder</h3>
@@ -96,11 +132,12 @@ export function Explore() {
               </div>
               <div className="seg">{CHORD_TYPES[chordType].iv.map((_, i) => <button key={i} className={inv === i ? 'active' : ''} onClick={() => setInv(i)}>{i === 0 ? 'Root' : `Inv ${i}`}</button>)}</div>
               <p><b>{chordInfo?.name ?? ''}</b> <span className="sub">{chord.map((p) => noteName(p)).join(' – ')}{chordInfo ? ` · ${chordInfo.inversion}` : ''}</span></p>
-              <div className="row"><button className="btn small" onClick={() => void play(chord)}>▶ Play</button><button className="btn small" onClick={() => void play(chord, true)}>Arpeggio</button><span className="sub" style={{ fontSize: '0.8rem' }}>Yellow keys show where to put your fingers.</span></div>
+              <div className="row"><button className="btn small" onClick={() => void play(chord)}>▶ Play</button><button className="btn small" onClick={() => void play(chord, true)}>Arpeggio</button><button className="btn small primary" onClick={practiceChord}>Practice it</button></div>
+              <span className="sub" style={{ fontSize: '0.8rem' }}>Notes fall onto the keys as they sound; yellow keys show where to put your fingers.</span>
             </div>
           </div>
         </div>
-        <aside className="side"><TheoryPanel musicalKey={`${SHARP_NAMES[root]} ${/minor|blues|dorian/.test(scale) ? 'minor' : 'major'}`} /><SoundPanel compact /></aside>
+        <aside className="side"><TheoryPanel musicalKey={key} /><SoundPanel compact /></aside>
       </div>
     </div>
   )

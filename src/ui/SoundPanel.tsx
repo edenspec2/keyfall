@@ -3,9 +3,9 @@ import { ARP_MODES, ARP_RATES, transposeShape } from '../audio/arp'
 import { audio, INSTRUMENTS, type InstrumentId } from '../audio/audioEngine'
 import {
   allPresets, captureChord, ccFor, clearCC, currentParams, deleteUserPreset, getParam, learn, loadPreset, renameUserPreset,
-  saveUserPreset, setCCMode, setParam, WIZARD, type CCMode,
+  FADERS, moves, saveUserPreset, setCCMode, setParam, WIZARD, type CCMode,
 } from '../audio/controls'
-import { defaults, FILTER_TYPES, fromNorm, MACROS, resolve, spec, toNorm, type Target } from '../audio/sound'
+import { defaults, FILTER_TYPES, fromNorm, resolve, spec, toNorm, type Target } from '../audio/sound'
 import { midi } from '../midi/midiInput'
 import { identifyChord } from '../music/theory'
 import { ccMap, settings, sound, userPresets, useStore, type SoundState } from '../store/store'
@@ -176,6 +176,27 @@ function LearnSection({ learnMode, setLearnMode }: { learnMode: boolean; setLear
   )
 }
 
+/** A short "Reverb time 3.2 s" readout whenever a hardware knob or fader moves, wherever you are in the app. */
+export function KnobReadout() {
+  const m = useSyncExternalStore(moves.subscribe, moves.get)
+  const value = useSyncExternalStore(sound.subscribe, () => (m ? getParam(m.target) : 0))
+  const [shown, setShown] = useState(false)
+  useEffect(() => {
+    if (!m) return
+    setShown(true)
+    const t = setTimeout(() => setShown(false), 1200)
+    return () => clearTimeout(t)
+  }, [m])
+  if (!m) return null
+  const s = spec(m.target)
+  return (
+    <div className={`sp-readout${shown ? ' show' : ''}`} role="status" aria-live="polite">
+      <span>{s.label}</span><b>{s.fmt ? s.fmt(value) : value}</b>
+      <i style={{ width: `${toNorm(m.target, value) * 100}%` }} />
+    </div>
+  )
+}
+
 /** Analog Lab-style sound controls: presets, instrument, 4 macros, detailed sections, arp/chord, MIDI learn. */
 export function SoundPanel({ compact }: { compact?: boolean }) {
   const inst = useInst()
@@ -189,7 +210,13 @@ export function SoundPanel({ compact }: { compact?: boolean }) {
       <div className="seg sp-seg sp-inst" aria-label="Instrument">
         {INSTRUMENTS.map((i) => <button key={i.id} className={inst === i.id ? 'active' : ''} onClick={() => settings.set({ instrument: i.id })}>{i.label}</button>)}
       </div>
-      <div className="sp-macros">{MACROS.map((id) => k(id, true))}</div>
+      {/* Laid out like the MiniLab: knobs 1–4 (the macros), knobs 5–8, then the 4 faders. They work without MIDI learn. */}
+      <div className="sp-hw-label">Knobs 1–4</div>
+      <div className="sp-macros">{WIZARD.slice(0, 4).map((id) => k(id, true))}</div>
+      <div className="sp-hw-label">Knobs 5–8</div>
+      <div className="sp-macros sp-hw-row">{WIZARD.slice(4).map((id) => k(id))}</div>
+      <div className="sp-hw-label">Faders</div>
+      <div className="sp-macros sp-hw-row">{FADERS.map((id) => k(id))}</div>
       <Section title="Filter">
         <div className="seg sp-seg" aria-label="Filter type">
           {FILTER_TYPES.map((t, i) => <button key={t} className={filterType === i ? 'active' : ''} onClick={() => setParam('filterType', i)}>{['Low-pass', 'High-pass', 'Band-pass'][i]}</button>)}

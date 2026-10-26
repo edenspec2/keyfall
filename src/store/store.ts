@@ -45,7 +45,6 @@ export interface Settings {
   calibrationMs: number
   lowestKey: number | null // what the user's lowest key sent during setup
   keyCount: number
-  unlockAll: boolean
   computerKeys: boolean // play with the computer keyboard (A S D F …)
   audioBuffer: 'interactive' | 'balanced' // OS audio buffer: 'balanced' trades a few ms of latency for fewer crackles
 }
@@ -64,7 +63,6 @@ export const settings = persisted<Settings>('settings', {
   calibrationMs: 0,
   lowestKey: null,
   keyCount: 25,
-  unlockAll: false,
   computerKeys: true,
   audioBuffer: 'interactive',
 })

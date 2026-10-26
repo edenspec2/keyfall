@@ -118,3 +118,18 @@ span.sp-cc { cursor: default; border-color: transparent; background: var(--accen
   .sp *, .sp *::before { animation: none !important; transition: none !important; }
 }
 .sp-row .sp-knob { width: 64px; }
+
+/* MiniLab-style rows: knobs 1–4 big, knobs 5–8 and faders smaller */
+.sp-hw-label { font-size: var(--fs-xs, 0.72rem); color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; margin: 8px 2px -4px; }
+.sp-hw-row { background: var(--panel-2); padding: 10px 4px 8px; }
+.sp-compact .sp-big .sp-label, .sp-compact .sp-hw-row .sp-label { font-size: 0.7rem; letter-spacing: -0.01em; text-overflow: clip; }
+
+/* Hardware-move readout, bottom centre over any page */
+.sp-readout { position: fixed; left: 50%; bottom: 28px; z-index: 60; min-width: 200px; display: flex; gap: 14px; align-items: baseline;
+  justify-content: space-between; padding: 10px 16px 14px; border-radius: 14px; pointer-events: none; overflow: hidden;
+  background: color-mix(in srgb, var(--panel) 92%, transparent); border: 1px solid var(--line); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(16px); opacity: 0; transform: translate(-50%, 8px) scale(0.98); transition: opacity 160ms ease, transform 240ms var(--ease-spring, ease); }
+.sp-readout.show { opacity: 1; transform: translate(-50%, 0) scale(1); }
+.sp-readout span { color: var(--muted); font-size: 0.85rem; }
+.sp-readout b { font-variant-numeric: tabular-nums; }
+.sp-readout i { position: absolute; left: 0; bottom: 0; height: 3px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); }

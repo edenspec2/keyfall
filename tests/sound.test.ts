@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { arpPattern, chordShape, randomStep, transposeShape } from '../src/audio/arp'
-import { ccFor, clearCC, decodeCC, detectEncoding, getParam, handleCC, learn, loadPreset, mapCC, relDelta, saveUserPreset, setCCMode, setParam, WIZARD, deleteUserPreset, renameUserPreset, allPresets, currentParams } from '../src/audio/controls'
+import { autoTarget, ccFor, clearCC, decodeCC, detectEncoding, getParam, handleCC, learn, loadPreset, mapCC, relDelta, saveUserPreset, setCCMode, setParam, WIZARD, deleteUserPreset, renameUserPreset, allPresets, currentParams } from '../src/audio/controls'
 import { defaults, effective, FACTORY_PRESETS, fromNorm, PARAM_IDS, PARAMS, resolve, toNorm, type Params } from '../src/audio/sound'
 import { MidiInput, parseMessage, type CCEvent, type InputEvent } from '../src/midi/midiInput'
 import { ccMap, settings, sound, userPresets } from '../src/store/store'
@@ -161,8 +161,9 @@ describe('MIDI learn', () => {
     expect(getParam('cutoff')).toBe(20000)
     handleCC(30, 0)
     expect(getParam('cutoff')).toBe(40)
-    handleCC(31, 100) // unmapped: nothing
+    handleCC(31, 100) // a new knob takes the first free control (Brightness), never one already assigned
     expect(getParam('cutoff')).toBe(40)
+    expect(ccMap.get().map[31]?.target).toBe('brightness')
     clearCC('cutoff')
     expect(ccFor('cutoff')).toBeNull()
   })
@@ -196,5 +197,16 @@ describe('MIDI learn', () => {
     const s2 = await import('../src/store/store')
     expect(s2.ccMap.get().map[22]).toEqual({ target: 'brightness', mode: 'rel' })
     expect(s2.settings.get().volume).toBe(0.8) // other stores still load their defaults
+  })
+})
+
+describe('knobs work without MIDI learn', () => {
+  it('MiniLab factory CCs land on their hardware slot; unknown CCs take the next free control', () => {
+    expect(autoTarget(74, {})).toBe('brightness') // knob 1
+    expect(autoTarget(93, {})).toBe('reverbMix') // knob 5
+    expect(autoTarget(82, {})).toBe('reverbDecay') // fader 1: reverb time
+    expect(autoTarget(22, {})).toBe('brightness')
+    expect(autoTarget(22, { 74: { target: 'brightness' } })).toBe('timbre')
+    expect(autoTarget(74, { 99: { target: 'brightness' } })).toBe('timbre') // its slot is taken by a learned knob
   })
 })

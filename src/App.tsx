@@ -14,7 +14,7 @@ import { Onboarding } from './ui/Onboarding'
 import { Practice } from './ui/Practice'
 import { ProgressPage } from './ui/ProgressPage'
 import { MidiStatusPill, Settings } from './ui/Settings'
-import { SoundPanel } from './ui/SoundPanel'
+import { KnobReadout, SoundPanel } from './ui/SoundPanel'
 import { progress } from './store/store'
 
 type Page = 'learn' | 'practice' | 'explore' | 'create' | 'progress' | 'settings'
@@ -41,6 +41,12 @@ export default function App() {
   const [lesson, setLesson] = useState<Lesson | null>(null)
   const [setup, setSetup] = useState(!st.onboarded)
   const [soundOpen, setSoundOpen] = useState(false)
+  useEffect(() => {
+    if (!soundOpen) return
+    const close = (e: KeyboardEvent) => { if (e.key === 'Escape') setSoundOpen(false) }
+    window.addEventListener('keydown', close)
+    return () => window.removeEventListener('keydown', close)
+  }, [soundOpen])
   const [soundOn, setSoundOn] = useState(audio.started)
 
   useEffect(() => {
@@ -60,13 +66,14 @@ export default function App() {
 
   const go = (p: Page) => { if (p !== page) transition(() => setPage(p)) }
   const open = (l: Lesson) => transition(() => { setLesson(l); setPage('practice') })
-  const next = lesson ? CURRICULUM[CURRICULUM.indexOf(lesson) + 1] : undefined
+  const at = lesson ? CURRICULUM.indexOf(lesson) : -1
+  const next = at >= 0 ? CURRICULUM[at + 1] : undefined // Explore's scale/chord drills have no "next lesson"
 
   if (setup) {
     return <div className="main onboarding" style={{ height: '100dvh' }}><Onboarding done={(start) => transition(() => { setSetup(false); if (start) { setLesson(CURRICULUM[0]); setPage('practice') } })} /></div>
   }
 
-  const practiceLesson = lesson ?? nextLesson(progress.get(), st.unlockAll)
+  const practiceLesson = lesson ?? nextLesson(progress.get())
   return (
     <div className="app">
       <nav className="sidebar" aria-label="Main">
@@ -92,7 +99,7 @@ export default function App() {
         {page === 'practice' && (practiceLesson.kind === 'echo'
           ? <EchoLesson key={practiceLesson.id} lesson={practiceLesson} onExit={() => go('learn')} onNext={next ? () => open(next) : undefined} />
           : <Practice key={practiceLesson.id} lesson={practiceLesson} onExit={() => go('learn')} onNext={next ? () => open(next) : undefined} />)}
-        {page === 'explore' && <Explore />}
+        {page === 'explore' && <Explore onPractice={open} />}
         {page === 'create' && <Create />}
         {page === 'progress' && <ProgressPage />}
         {page === 'settings' && <Settings rerunSetup={() => transition(() => setSetup(true))} />}
@@ -105,6 +112,7 @@ export default function App() {
         </div>
         <SoundPanel compact />
       </aside>
+      <KnobReadout />
     </div>
   )
 }
