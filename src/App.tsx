@@ -63,7 +63,7 @@ export default function App() {
   const next = lesson ? CURRICULUM[CURRICULUM.indexOf(lesson) + 1] : undefined
 
   if (setup) {
-    return <div className="main onboarding" style={{ height: '100vh' }}><Onboarding done={(start) => transition(() => { setSetup(false); if (start) { setLesson(CURRICULUM[0]); setPage('practice') } })} /></div>
+    return <div className="main onboarding" style={{ height: '100dvh' }}><Onboarding done={(start) => transition(() => { setSetup(false); if (start) { setLesson(CURRICULUM[0]); setPage('practice') } })} /></div>
   }
 
   const practiceLesson = lesson ?? nextLesson(progress.get(), st.unlockAll)

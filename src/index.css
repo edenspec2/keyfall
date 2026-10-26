@@ -74,7 +74,7 @@ body {
     radial-gradient(700px 500px at 0% 110%, rgba(94, 200, 255, 0.10), transparent 60%),
     var(--bg);
 }
-#root { height: 100vh; }
+#root { height: 100vh; height: 100dvh; } /* dvh: the visible height on phones, without the address bar */
 h1, h2, h3 { margin: 0; font-family: var(--font-display); font-weight: 650; letter-spacing: -0.015em; line-height: 1.2; }
 h1 { font-size: var(--fs-xl); letter-spacing: -0.022em; }
 h2 { font-size: var(--fs-lg); }
@@ -90,7 +90,7 @@ button:focus-visible, select:focus-visible, input:focus-visible { outline: none;
 * { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.14) transparent; }
 
 /* ───────────────────────── Shell ───────────────────────── */
-.app { display: grid; grid-template-columns: 220px 1fr; height: 100vh; }
+.app { display: grid; grid-template-columns: 220px 1fr; height: 100vh; height: 100dvh; }
 .sidebar {
   background: var(--glass);
   backdrop-filter: blur(24px) saturate(170%);
@@ -250,7 +250,7 @@ details summary:hover { color: var(--text); }
 .empty > span { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-size: 1.3rem; color: var(--accent); background: var(--accent-soft); animation: breathe 2.4s var(--ease-in-out) infinite; }
 
 /* ───────────────────────── Practice ───────────────────────── */
-.practice { display: grid; grid-template-rows: auto 1fr; height: 100vh; }
+.practice { display: grid; grid-template-rows: auto 1fr; height: 100vh; height: 100dvh; }
 .practice-bar {
   display: flex; align-items: center; gap: 8px 10px; padding: 9px 16px; flex-wrap: wrap;
   border-bottom: 1px solid var(--hairline); background: rgba(14, 16, 23, 0.85);
@@ -417,6 +417,32 @@ html:not(.vt) .main > * { animation: page-in var(--dur-page) var(--ease-out) bot
   .ranking { grid-template-columns: 1fr; justify-items: center; }
   .rank-xl { font-size: 5.5rem; }
   .stage-meter { margin-left: 0; align-items: flex-start; }
+}
+/* Phones in portrait: long button labels wrap instead of running off the screen. */
+@media (max-width: 600px) {
+  .btn { white-space: normal; text-align: left; }
+}
+/* Phones in landscape: the practice controls fit on one row you can swipe sideways,
+   so the falling notes and the keyboard get almost the whole height. */
+@media (max-height: 500px) and (orientation: landscape) {
+  .app { grid-template-columns: 52px 1fr; }
+  .sidebar { padding: 8px 6px; overflow-y: auto; }
+  .brand { padding: 4px 6px 8px; }
+  .nav-btn { padding: 6px 8px; }
+  .practice-bar { flex-wrap: nowrap; overflow-x: auto; padding: 4px 8px; gap: 6px; scrollbar-width: none; }
+  .practice-bar::-webkit-scrollbar { display: none; }
+  .practice-bar > * { flex: none; }
+  .practice-bar .spacer { display: none; }
+  /* No Space key on a phone: Back, then Play/Pause, always in reach without swiping. */
+  .practice-bar > :first-child { order: -2; }
+  .practice-bar > .btn.primary { order: -1; }
+  .practice-bar .col .sub { display: none; }
+  .practice-bar .btn, .practice-bar select, .practice-bar .seg button { padding: 4px 8px; font-size: 0.8rem; }
+  .practice-bar input[type='range'] { width: 84px; }
+  .hud { top: 6px; }
+  .toast { top: 40px; }
+  .overlay { padding: 8px; }
+  .overlay .card { padding: 16px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 1ms !important; animation-iteration-count: 1 !important; }
