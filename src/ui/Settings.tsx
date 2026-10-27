@@ -104,6 +104,19 @@ function PadLearn() {
  */
 function AudioCheck() {
   useTicker(500)
+  const [check, setCheck] = useState('')
+  const [result, setResult] = useState('')
+  const runCheck = async () => {
+    setResult('')
+    setCheck('1 of 3: plain browser beep')
+    beep()
+    await new Promise((r) => setTimeout(r, 900))
+    try {
+      const r = await audio.selfTest(setCheck)
+      setResult(`clock ${r.clock ? 'moving' : 'STUCK'} · ${r.state} · ${r.rate} Hz · Tone direct ${r.direct} · app path ${r.chain}`)
+    } catch (err) { setResult(`error: ${err}`) }
+    setCheck('')
+  }
   const beep = () => {
     const C = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
     const c = new C()
@@ -118,8 +131,11 @@ function AudioCheck() {
       <p className="sub">Audio: <b className="mono">{audio.status()}</b>{audio.lastError && <><br />Last error: <span className="mono">{audio.lastError}</span></>}</p>
       <div className="row">
         <button className="btn small" onClick={beep}>Direct test beep</button>
+        <button className="btn small primary" onClick={() => void runCheck()} disabled={!!check}>{check ? 'Checking…' : 'Run sound check'}</button>
         <span className="sub" style={{ fontSize: 'var(--fs-sm)' }}>No beep either? Turn up the media volume, and on Android try unplugging the keyboard: some phones send all sound to a USB device.</span>
       </div>
+      {check && <p className="callout">{check} – listen…</p>}
+      {result && <p className="callout mono" style={{ userSelect: 'all' }}>{result}<br /><span className="sub">Which of the 3 beeps did you hear? Send this line and your answer.</span></p>}
     </div>
   )
 }

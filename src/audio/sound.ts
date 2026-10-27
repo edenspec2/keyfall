@@ -62,6 +62,8 @@ const INIT: Record<InstrumentId, Partial<Params>> = {
   epiano: { attack: 0.002, decay: 1.2, sustain: 0.25, release: 0.8 },
   strings: { attack: 0.25, decay: 0.3, sustain: 0.8, release: 1.4 },
   synth: { attack: 0.005, decay: 0.2, sustain: 0.4, release: 0.3 },
+  // Reed organ: bellows swell, held tone, a darker nasal colour (filter + mid lift) and a slight bellows wobble.
+  harmonium: { attack: 0.05, decay: 0.2, sustain: 0.9, release: 0.15, cutoff: 2600, resonance: 1.2, eqMid: 2, tremolo: 0.1, lfoRate: 4.5, reverbMix: 0.12 },
 }
 const DEFAULTS = Object.fromEntries(Object.entries(INIT).map(([k, v]) => [k, { ...BASE, ...v }])) as Record<InstrumentId, Params>
 export const defaults = (inst: InstrumentId): Params => DEFAULTS[inst] ?? BASE
@@ -105,7 +107,7 @@ export interface Effective {
 export function effective(p: Params, inst: InstrumentId): Effective {
   const b = p.brightness - 0.5, t = p.timbre - 0.5, m = p.time - 0.5, v = p.movement - 0.5
   const time = Math.pow(2, m * 4) // Time: ×0.25 … ×4 on attack, release and reverb decay
-  const up = Math.max(0, v), keys = inst === 'piano' || inst === 'epiano'
+  const up = Math.max(0, v), keys = inst === 'piano' || inst === 'epiano' || inst === 'harmonium' // Movement → tremolo (bellows)
   return {
     // Brightness: ±4 octaves of cutoff and ±6 dB on the high shelf.
     cutoff: clamp(p.cutoff * Math.pow(2, b * 8), 40, 20000),
@@ -138,7 +140,7 @@ export function effective(p: Params, inst: InstrumentId): Effective {
     drumsVol: p.drumsVol,
     modIndex: 6 * Math.pow(2, t * 3), // e-piano FM index: 2.1 … 17
     harmonicity: Math.round(1 + p.timbre * 3), // strings AM: whole ratios 1–4 stay harmonic
-    spread: p.timbre * 40, // synth lead: detune of the 3 stacked saws, in cents
+    spread: p.timbre * (inst === 'harmonium' ? 24 : 40), // detune of the 3 stacked saws (harmonium: the reed beating), in cents
   }
 }
 
@@ -161,6 +163,10 @@ export const FACTORY_PRESETS: Preset[] = [
   { name: 'Saw Lead', instrument: 'synth', params: { cutoff: 6000, resonance: 3, glide: 0.04, delayMix: 0.18, delayDiv: 3, reverbMix: 0.12 } },
   { name: 'Acid Line', instrument: 'synth', params: { timbre: 0.1, cutoff: 900, resonance: 9, drive: 0.4, decay: 0.25, sustain: 0.2, release: 0.12, delayMix: 0.15 } },
   { name: 'Space Lead', instrument: 'synth', params: { glide: 0.12, vibratoRate: 6, delayMix: 0.3, delayFeedback: 0.5, delayDiv: 5, reverbMix: 0.35, reverbDecay: 6, width: 0.85, release: 0.8 } },
+  { name: 'Init', instrument: 'harmonium', params: {} },
+  { name: 'Indian Harmonium', instrument: 'harmonium', params: { cutoff: 3200, eqMid: 3, tremolo: 0.18, lfoRate: 5.5, reverbMix: 0.08 } },
+  { name: 'Church Reed Organ', instrument: 'harmonium', params: { timbre: 0.3, cutoff: 1800, attack: 0.09, release: 0.4, tremolo: 0, reverbMix: 0.35, reverbDecay: 3.5, width: 0.7 } },
+  { name: 'Musette Accordion', instrument: 'harmonium', params: { timbre: 0.9, cutoff: 3800, eqMid: 4, tremolo: 0.12, lfoRate: 6, reverbMix: 0.1 } },
 ]
 
 /** Save or overwrite a user preset by name (per instrument). Returns a new list. */

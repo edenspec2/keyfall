@@ -56,11 +56,11 @@ describe('relative / absolute decoding', () => {
 })
 
 describe('macros', () => {
-  const at = (id: keyof Params, v: number, inst: 'piano' | 'epiano' | 'strings' | 'synth' = 'synth') => effective({ ...defaults(inst), [id]: v }, inst)
+  const at = (id: keyof Params, v: number, inst: 'piano' | 'epiano' | 'strings' | 'synth' | 'harmonium' = 'synth') => effective({ ...defaults(inst), [id]: v }, inst)
   const steps = [0, 0.1, 0.25, 0.5, 0.75, 0.9, 1]
   const mono = (xs: number[]) => xs.every((x, i) => i === 0 || x >= xs[i - 1])
   it('leave the designed sound untouched at their default (0.5)', () => {
-    for (const inst of ['piano', 'epiano', 'strings', 'synth'] as const) {
+    for (const inst of ['piano', 'epiano', 'strings', 'synth', 'harmonium'] as const) {
       const d = defaults(inst), e = effective(d, inst)
       expect(e.cutoff).toBe(d.cutoff); expect(e.attack).toBeCloseTo(d.attack); expect(e.release).toBeCloseTo(d.release)
       expect(e.reverbDecay).toBeCloseTo(d.reverbDecay); expect(e.chorus).toBe(d.chorus); expect(e.eqHigh).toBe(d.eqHigh); expect(e.drive).toBe(d.drive)
@@ -220,5 +220,16 @@ describe('knobs work without MIDI learn', () => {
     const factoryCC = [74, 71, 76, 77, 93, 18, 19, 16, 82, 83, 85, 17][WIZARD.concat(['reverbDecay', 'cutoff', 'keysVol', 'master'] as const).indexOf(grabbed)]
     handleCC(factoryCC, 64) // the MiniLab knob for that slot
     expect(ccFor(grabbed)).toBe(factoryCC)
+  })
+})
+
+describe('harmonium', () => {
+  it('is a sustained reed sound whose Timbre sets the reed beating and Movement the bellows wobble', () => {
+    const d = defaults('harmonium')
+    expect(d.sustain).toBeGreaterThanOrEqual(0.9) // a reed sounds as long as the key is held
+    expect(effective(d, 'harmonium').spread).toBeCloseTo(12)
+    expect(effective({ ...d, timbre: 1 }, 'harmonium').spread).toBeCloseTo(24)
+    expect(effective({ ...d, movement: 1 }, 'harmonium').tremolo).toBeGreaterThan(effective(d, 'harmonium').tremolo)
+    expect(FACTORY_PRESETS.filter((p) => p.instrument === 'harmonium').map((p) => p.name)).toContain('Indian Harmonium')
   })
 })

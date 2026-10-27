@@ -44,7 +44,7 @@ export interface Lesson {
     minTiming?: number // 0..1 fraction of hits that are on time (rhythm mode)
   }
   /** Sound for the lesson (e.g. 'synth' for pitch-bend lessons); default is the user's instrument. */
-  instrument?: 'piano' | 'epiano' | 'strings' | 'synth'
+  instrument?: 'piano' | 'epiano' | 'strings' | 'synth' | 'harmonium'
   /** Unlock after this lesson has a star, instead of after the previous piece (side tracks like the pads stage). */
   unlockAfter?: string
   /** Shown when the piece needs the MiniLab octave buttons. Default range is C3–C5 (48–72). */

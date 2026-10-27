@@ -20,7 +20,7 @@ export function setParam(id: Target, v: number) {
 }
 export const currentParams = (i: InstrumentId = inst()): Params => resolve(i, sound.get().params[i])
 /** All instruments' resolved params, for the engine. */
-export const allSounds = () => Object.fromEntries((['piano', 'epiano', 'strings', 'synth'] as InstrumentId[]).map((i) => [i, currentParams(i)])) as Record<InstrumentId, Params>
+export const allSounds = () => Object.fromEntries((['piano', 'epiano', 'strings', 'synth', 'harmonium'] as InstrumentId[]).map((i) => [i, currentParams(i)])) as Record<InstrumentId, Params>
 
 // ---- presets ----
 export const allPresets = (): (Preset & { user?: boolean })[] => [...FACTORY_PRESETS, ...userPresets.get().items.map((p) => ({ ...p, user: true }))]

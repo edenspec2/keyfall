@@ -2,12 +2,13 @@ import * as Tone from 'tone'
 import { toneName } from '../music/theory'
 import { defaults, effective, type Effective, type Params } from './sound'
 
-export type InstrumentId = 'piano' | 'epiano' | 'strings' | 'synth'
+export type InstrumentId = 'piano' | 'epiano' | 'strings' | 'synth' | 'harmonium'
 export const INSTRUMENTS: { id: InstrumentId; label: string }[] = [
   { id: 'piano', label: 'Grand piano' },
   { id: 'epiano', label: 'Electric piano' },
   { id: 'strings', label: 'Soft strings' },
   { id: 'synth', label: 'Synth lead' },
+  { id: 'harmonium', label: 'Harmonium' },
 ]
 
 type Voice = Tone.Sampler | Tone.PolySynth
@@ -62,6 +63,38 @@ class AudioEngine {
   /** Last audio error, shown in Settings so a silent device can be diagnosed without dev tools. */
   lastError = ''
   private native = false
+  private out: Tone.ToneAudioNode | null = null // end of the chain, tapped by the sound check
+
+  /**
+   * On-device sound check, for phones we can't watch: is the audio clock moving, and how loud is the signal from a
+   * plain Tone synth sent straight to the speakers (what muted.io does) versus the app's own path (voice → effects →
+   * limiter)? Each step plays a short tone; the peak level is measured inside the graph, so it shows where sound stops.
+   */
+  async selfTest(step: (label: string) => void) {
+    await this.start()
+    this.resume()
+    const c = this.ctx
+    const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
+    const peakOf = async (node: Tone.ToneAudioNode, play: () => void) => {
+      const m = new Tone.Meter({ normalRange: true, smoothing: 0 })
+      node.connect(m)
+      play()
+      let peak = 0
+      for (let i = 0; i < 12; i++) { await wait(50); const v = m.getValue(); peak = Math.max(peak, typeof v === 'number' ? v : Math.max(...v)) }
+      node.disconnect(m); m.dispose()
+      return Math.round(peak * 1000) / 1000
+    }
+    const t0 = c.currentTime
+    await wait(300)
+    const clock = c.currentTime > t0
+    step('2 of 3: Tone.js straight to the speakers')
+    const synth = new Tone.Synth({ volume: -8 }).toDestination()
+    const direct = await peakOf(synth, () => synth.triggerAttackRelease('A5', 0.4))
+    synth.dispose()
+    step("3 of 3: the app's piano path")
+    const chain = this.out ? await peakOf(this.out, () => this.schedule(72, this.now() + 0.02, 0.45, 110)) : -1
+    return { state: c.state, clock, direct, chain, rate: c.sampleRate }
+  }
   private inst: InstrumentId = 'piano'
   private voices = new Map<InstrumentId, Voice>()
   private sustained = new Set<number>() // released while the pedal was down
@@ -160,6 +193,7 @@ class AudioEngine {
   private makeChain(): Chain {
     // Gentle bus compression, then a limiter, so stacked effects and drums never clip.
     const limiter = new Tone.Limiter(-1).toDestination()
+    this.out = limiter
     const comp = new Tone.Compressor({ threshold: -12, ratio: 3, attack: 0.005, release: 0.2 }).connect(limiter)
     const widener = new Tone.StereoWidener(0.5).connect(comp)
     const reverbDry = new Tone.Gain(1).connect(widener)
@@ -272,6 +306,7 @@ class AudioEngine {
     if (id === 'epiano') opts.modulationIndex = e.modIndex
     if (id === 'strings') opts.harmonicity = e.harmonicity
     if (id === 'synth') { opts.portamento = e.glide; opts.oscillator = { spread: e.spread } }
+    if (id === 'harmonium') opts.oscillator = { spread: e.spread }
     const key = JSON.stringify(opts)
     if (this.voiceKeys.get(v) === key) return
     this.voiceKeys.set(v, key)
@@ -345,6 +380,9 @@ class AudioEngine {
       : id === 'strings' ? new Tone.PolySynth(Tone.AMSynth, { envelope: { attack: 0.25, decay: 0.3, sustain: 0.8, release: 1.4 }, volume: -12 })
       // Three stacked saws; Timbre sets their detune spread.
       : id === 'synth' ? new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'fatsawtooth', count: 3, spread: 20 }, envelope: { attack: 0.005, decay: 0.2, sustain: 0.4, release: 0.3 }, volume: -22 })
+      // Harmonium: three slightly detuned reeds (the beating of the reed banks; Timbre sets it), a bellows swell,
+      // and full sustain while the key is held. The nasal reed colour comes from its default filter and EQ.
+      : id === 'harmonium' ? new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'fatsawtooth', count: 3, spread: 12 }, envelope: { attack: 0.05, decay: 0.2, sustain: 0.9, release: 0.15 }, volume: -20 })
       // piano fallback
       : new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'triangle' }, envelope: { attack: 0.003, decay: 1.4, sustain: 0.1, release: 0.6 }, volume: -8 })
     v.set({ detune: this.bendCents })
