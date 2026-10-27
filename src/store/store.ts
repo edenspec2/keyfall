@@ -16,12 +16,20 @@ export function persisted<T extends object>(key: string, initial: T) {
     if (raw) value = { ...initial, ...JSON.parse(raw) }
   } catch { /* private mode or corrupt JSON: keep defaults */ }
   const subs = new Set<() => void>()
+  // Another tab saved: take its value, so this tab's next write doesn't erase that tab's progress.
+  if (typeof window !== 'undefined') window.addEventListener('storage', (e) => {
+    if (e.key !== k || e.newValue === null) return
+    try { value = { ...initial, ...JSON.parse(e.newValue) }; subs.forEach((f) => f()) } catch { /* ignore corrupt write */ }
+  })
   return {
     get: () => value,
-    set(patch: Partial<T> | ((v: T) => T)) {
+    /** Returns false when the browser refused to store it (storage full or blocked); the value stays in memory. */
+    set(patch: Partial<T> | ((v: T) => T)): boolean {
       value = typeof patch === 'function' ? patch(value) : { ...value, ...patch }
-      try { localStorage.setItem(k, JSON.stringify(value)) } catch { /* quota/blocked: keep in memory */ }
+      let ok = true
+      try { localStorage.setItem(k, JSON.stringify(value)) } catch { ok = false }
       subs.forEach((f) => f())
+      return ok
     },
     subscribe: (f: () => void) => { subs.add(f); return () => { subs.delete(f) } },
   }

@@ -317,9 +317,10 @@ export function Practice({ lesson, onExit, onNext }: { lesson: Lesson; onExit: (
         {hasFingering && (
           <button className={`btn small ${handsPinned ? 'on' : ''}`} aria-pressed={handsPinned}
             title="Hover to see where each finger rests for the next passage; click to keep it on"
-            onMouseEnter={() => setHandsHover(true)} onMouseLeave={() => setHandsHover(false)}
-            onFocus={() => setHandsHover(true)} onBlur={() => setHandsHover(false)}
-            onClick={() => setHandsPinned(!handsPinned)}>✋ Hand position</button>
+            // Hover preview is for a mouse only: on a phone a tap also counts as hover (and focus), so the old
+            // hover/focus handlers kept the overlay up after the second tap meant to switch it off.
+            onPointerEnter={(e) => { if (e.pointerType === 'mouse') setHandsHover(true) }} onPointerLeave={() => setHandsHover(false)}
+            onClick={() => { setHandsPinned(!handsPinned); setHandsHover(false) }}>✋ Hand position</button>
         )}
         {/* Less frequent options live in a small menu, so the bar stays one clean row. */}
         <details className="menu" ref={menuRef}>

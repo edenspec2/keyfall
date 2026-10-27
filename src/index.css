@@ -381,8 +381,9 @@ details summary:hover { color: var(--text); }
 .menu-panel input[type='range'] { width: 100%; }
 .practice-body { display: grid; grid-template-columns: 1fr 300px; min-height: 0; }
 .practice-body.no-side { grid-template-columns: 1fr; }
+.explore-split { display: grid; grid-template-rows: minmax(260px, 1fr) auto; min-height: 0; }
 .canvas-wrap { position: relative; min-height: 0; overflow: hidden; background: var(--stage); }
-.canvas-wrap canvas { display: block; width: 100%; height: 100%; touch-action: manipulation; }
+.canvas-wrap canvas { display: block; width: 100%; height: 100%; touch-action: none; } /* no pan/zoom: the browser would cancel held keys */
 .side { border-left: 1px solid var(--line); background: var(--panel-2); overflow: auto; padding: 18px; display: flex; flex-direction: column; gap: 16px; }
 .overlay {
   position: absolute; inset: 0; display: grid; place-items: center; z-index: 5; padding: 24px;
@@ -492,6 +493,8 @@ details summary:hover { color: var(--text); }
 .roll-note:active { cursor: grabbing; }
 .roll-note.sel { outline: 2px solid var(--text); outline-offset: 0; }
 .roll-note .grip { position: absolute; right: 0; top: 0; bottom: 0; width: 7px; cursor: ew-resize; }
+.roll-note { touch-action: none; } /* dragging a note must not scroll the roll (the empty grid still scrolls) */
+@media (pointer: coarse) { .roll-note .grip { width: 16px; } }
 /* Grid lines as one repeating background instead of one element per line. */
 .roll-grid { position: absolute; top: 0; pointer-events: none;
   background-image:
@@ -578,6 +581,8 @@ html:not(.vt) .main > * { animation: page-in var(--dur-page) var(--ease-out) bot
   /* No Space key on a phone: Back, then Play/Pause, always in reach without swiping. */
   .practice-bar > :first-child { order: -2; }
   .practice-bar > .btn.primary { order: -1; }
+  /* Explore: the keyboard fills the screen and the scale/chord cards are one scroll below (they were unreachable). */
+  .explore-split { grid-template-rows: 100% auto; overflow-y: auto; }
   .practice-bar .col .sub { display: none; }
   .practice-bar .btn, .practice-bar select, .practice-bar .seg button { padding: 4px 8px; font-size: 0.8rem; }
   .practice-bar input[type='range'] { width: 84px; }

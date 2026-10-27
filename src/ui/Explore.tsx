@@ -110,7 +110,7 @@ export function Explore({ onPractice }: { onPractice: (l: Lesson) => void }) {
         {heldKey && held.length >= 3 && <span className="pill">These notes fit {heldKey}</span>}
       </div>
       <div className="practice-body">
-        <div style={{ display: 'grid', gridTemplateRows: 'minmax(260px, 1fr) auto', minHeight: 0 }}>
+        <div className="explore-split">
           <div className="canvas-wrap"><PianoCanvas scene={scene} /></div>
           <div className="row" style={{ padding: 16, gap: 16, alignItems: 'stretch', borderTop: '1px solid var(--line)', overflow: 'auto' }}>
             <div className="card col" style={{ flex: 1, minWidth: 260 }}>

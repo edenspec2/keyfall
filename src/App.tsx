@@ -83,7 +83,9 @@ export default function App() {
     return () => { for (const e of events) window.removeEventListener(e, go, true); clearInterval(poll); off() }
   }, [])
 
-  const go = (p: Page) => { if (p !== page) transition(() => setPage(p)) }
+  // Practice from the menu picks the next lesson once, here: worked out during render, it changed under the player
+  // whenever the app re-rendered (e.g. opening the Sound drawer), losing the results card.
+  const go = (p: Page) => { if (p !== page) transition(() => { if (p === 'practice' && !lesson) setLesson(nextLesson(progress.get())); setPage(p) }) }
   const open = (l: Lesson) => transition(() => { setLesson(l); setPage('practice') })
   const at = lesson ? CURRICULUM.indexOf(lesson) : -1
   const next = at >= 0 ? CURRICULUM[at + 1] : undefined // Explore's scale/chord drills have no "next lesson"
@@ -92,7 +94,6 @@ export default function App() {
     return <div className="main onboarding" style={{ height: '100dvh' }}><Onboarding done={(start) => transition(() => { setSetup(false); if (start) { setLesson(CURRICULUM[0]); setPage('practice') } })} /></div>
   }
 
-  const practiceLesson = lesson ?? nextLesson(progress.get())
   return (
     <div className="app">
       <nav className="sidebar" aria-label="Main">
@@ -115,9 +116,9 @@ export default function App() {
       </nav>
       <main className="main">
         {page === 'learn' && <Learn open={open} />}
-        {page === 'practice' && (practiceLesson.kind === 'echo'
-          ? <EchoLesson key={practiceLesson.id} lesson={practiceLesson} onExit={() => go('learn')} onNext={next ? () => open(next) : undefined} />
-          : <Practice key={practiceLesson.id} lesson={practiceLesson} onExit={() => go('learn')} onNext={next ? () => open(next) : undefined} />)}
+        {page === 'practice' && lesson && (lesson.kind === 'echo'
+          ? <EchoLesson key={lesson.id} lesson={lesson} onExit={() => go('learn')} onNext={next ? () => open(next) : undefined} />
+          : <Practice key={lesson.id} lesson={lesson} onExit={() => go('learn')} onNext={next ? () => open(next) : undefined} />)}
         {page === 'explore' && <Explore onPractice={open} />}
         {page === 'create' && <Create />}
         {page === 'progress' && <ProgressPage />}

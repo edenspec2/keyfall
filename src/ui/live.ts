@@ -16,6 +16,7 @@ export const computerKeys = { base: 60 }
 
 const downKeys = new Map<string, number>() // code → pitch, so an octave change mid-press releases the right note
 let started = false
+let lastInstrument = ''
 export function initLiveInput() {
   if (started) return
   started = true
@@ -39,7 +40,8 @@ export function initLiveInput() {
   const applySettings = () => {
     const s = settings.get()
     midi.filter = { port: s.midiPort, channel: s.midiChannel, pads: s.padMode, padBase: s.padBase }
-    audio.instrument = s.instrument
+    // Only on a real change: other settings writes (metronome, labels, zoom) must not undo a lesson's own instrument.
+    if (s.instrument !== lastInstrument) { lastInstrument = s.instrument; audio.instrument = s.instrument }
     audio.latencyHint = s.audioBuffer // read when audio starts, so a change applies after a reload
     if (audio.started) audio.setVolume(s.volume)
   }

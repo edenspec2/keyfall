@@ -319,9 +319,10 @@ class AudioEngine {
   // ---- live playing ----
   noteOn(pitch: number, vel: number) {
     const v = this.voice(); if (!v) return
-    // Re-striking a key that still rings on another voice (instrument changed meanwhile): end the old one.
+    // Re-striking a key that still rings (under the pedal, or on another instrument): end the old note first.
+    // A PolySynth releases only one voice per pitch, so a second attack on top would ring forever after pedal-up.
     const old = this.liveVoice.get(pitch)
-    if (old && old !== v) old.triggerRelease(toneName(pitch), Tone.immediate())
+    if (old) old.triggerRelease(toneName(pitch), Tone.immediate())
     this.liveVoice.set(pitch, v)
     this.down.add(pitch)
     this.sustained.delete(pitch)

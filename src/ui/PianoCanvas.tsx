@@ -50,11 +50,19 @@ export function PianoCanvas({ scene, tick, fx }: { scene: () => Scene; tick?: ()
     for (const [p, k] of layout) if (!k.black && x >= k.x && x < k.x + k.w) return p
     return null
   }
-  const down = useRef<number | null>(null)
-  const release = () => {
-    if (down.current !== null) midi.emit({ type: 'off', pitch: down.current, channel: 1, time: performance.now(), source: 'mouse' })
-    down.current = null
+  // One entry per finger: a single "last key" leaked the first note of a two-finger tap.
+  const down = useRef(new Map<number, number>()) // pointerId → pitch
+  const release = (e: React.PointerEvent) => {
+    const p = down.current.get(e.pointerId)
+    if (p === undefined) return
+    down.current.delete(e.pointerId)
+    midi.emit({ type: 'off', pitch: p, channel: 1, time: performance.now(), source: 'mouse' })
   }
+  // Leaving the screen with fingers down (e.g. lesson ends) must not leave notes hanging.
+  useEffect(() => () => {
+    for (const p of down.current.values()) midi.emit({ type: 'off', pitch: p, channel: 1, time: performance.now(), source: 'mouse' })
+    down.current.clear()
+  }, [])
 
   return (
     <canvas
@@ -64,11 +72,12 @@ export function PianoCanvas({ scene, tick, fx }: { scene: () => Scene; tick?: ()
         const p = pointerPitch(e)
         if (p === null) return
         if (typeof p === 'object') { midi.emit({ type: 'pad', pad: p.pad, vel: 100, channel: 10, time: performance.now(), source: 'mouse' }); return }
-        down.current = p
+        e.currentTarget.setPointerCapture(e.pointerId) // the release reaches us even if the finger slides off
+        down.current.set(e.pointerId, p)
         midi.emit({ type: 'on', pitch: p, vel: 85, channel: 1, time: performance.now(), source: 'mouse' })
       }}
       onPointerUp={release}
-      onPointerLeave={release}
+      onPointerCancel={release}
     />
   )
 }

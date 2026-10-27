@@ -133,15 +133,29 @@ export const learn = {
   wizard() { learn.set({ armed: WIZARD[0], queue: WIZARD.slice(1), used: [] }) },
 }
 
+/**
+ * Knobs picked up automatically live for this session only. Persisting them let any stray CC (the main encoder,
+ * a button, bank select) take a control for good and push real knobs onto other controls. MIDI learn persists.
+ */
+const autoMap = new Map<number, { target: Target; mode: CCMode }>()
+// Standard controllers that are never a knob: bank select, data entry, volume, pan, expression, (N)RPN, channel mode.
+const NOT_KNOBS = new Set([0, 6, 7, 10, 11, 32, 38, 96, 97, 98, 99, 100, 101, 120, 121, 122, 123, 124, 125, 126, 127])
+const dropAuto = (target: Target) => { for (const [c, v] of autoMap) if (v.target === target) autoMap.delete(c) }
+
 export function mapCC(cc: number, target: Target, mode: CCMode = 'auto') {
   // One knob per target and one target per knob.
+  dropAuto(target)
+  autoMap.delete(cc)
   ccMap.set((m) => ({ map: { ...Object.fromEntries(Object.entries(m.map).filter(([, v]) => v.target !== target)), [cc]: { target, mode } } }))
 }
 export const clearCC = (target: Target) => ccMap.set((m) => ({ map: Object.fromEntries(Object.entries(m.map).filter(([, v]) => v.target !== target)) }))
-export const ccFor = (target: Target) => { const e = Object.entries(ccMap.get().map).find(([, v]) => v.target === target); return e ? +e[0] : null }
+export const ccFor = (target: Target) => {
+  const e = Object.entries(ccMap.get().map).find(([, v]) => v.target === target) ?? [...autoMap].find(([, v]) => v.target === target)
+  return e ? +e[0] : null
+}
 export function setCCMode(target: Target, mode: CCMode) {
   const cc = ccFor(target)
-  if (cc !== null) { sticky.delete(cc); ccMap.set((m) => ({ map: { ...m.map, [cc]: { target, mode } } })) }
+  if (cc !== null) { sticky.delete(cc); autoMap.delete(cc); ccMap.set((m) => ({ map: { ...m.map, [cc]: { target, mode } } })) }
 }
 
 /** Every Control Change except mod (1) and sustain (64) lands here. Keys and pads never reach it. */
@@ -157,12 +171,17 @@ export function handleCC(cc: number, raw: number) {
     learn.set(L.queue.length ? { armed: L.queue[0], queue: L.queue.slice(1), used: [...L.used, cc] } : { armed: null, queue: [], used: [] })
     return
   }
-  let m = ccMap.get().map[cc]
+  let m = ccMap.get().map[cc] ?? autoMap.get(cc)
   if (!m) {
-    const t = autoTarget(cc, ccMap.get().map)
+    if (NOT_KNOBS.has(cc)) return
+    // A MiniLab knob always gets its own slot back from a stray CC that grabbed it earlier this session.
+    const factory = HARDWARE[MINILAB_CCS.indexOf(cc)]
+    if (factory) dropAuto(factory)
+    const t = autoTarget(cc, { ...Object.fromEntries(autoMap), ...ccMap.get().map })
     if (!t) return
-    mapCC(cc, t)
-    m = ccMap.get().map[cc]
+    m = { target: t, mode: 'auto' }
+    autoMap.set(cc, m)
+    ccMap.set((x) => ({ ...x })) // let the panel show the new knob's CC
   }
   const t = m.target, cur = getParam(t), prev = toNorm(t, cur)
   const n = decodeCC(prev, raw, encodingFor(cc, m.mode))

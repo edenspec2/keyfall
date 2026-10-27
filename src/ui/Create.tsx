@@ -173,13 +173,24 @@ export function Create() {
     if (n.pitch !== track.notes[d.i].pitch && audio.started) preview(n.pitch, 0.2, 60)
     updateTrack(active, (t) => ({ ...t, notes: t.notes.map((x, k) => (k === d.i ? n : x)) }), false)
   }
+  // A note is added when a tap ends, not when it starts: on a touch screen a swipe that scrolls the roll
+  // also begins with a pointerdown, and used to drop a note on every scroll.
+  const tap = useRef<{ x: number; y: number; b: number; p: number } | null>(null)
   const onGridDown = (e: React.PointerEvent) => {
+    tap.current = null
     if (e.button !== 0) return
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
     const b = Math.max(0, Math.floor((e.clientX - r.left - KEYW) / pxBeat / grid) * grid)
     const p = hi - Math.floor((e.clientY - r.top) / ROW)
     if (p < lo || p > hi) return
     if (e.clientX - r.left < KEYW) { preview(p, 0.5); return }
+    tap.current = { x: e.clientX, y: e.clientY, b, p }
+  }
+  const onGridUp = (e: React.PointerEvent) => {
+    const t = tap.current
+    tap.current = null
+    if (!t || Math.hypot(e.clientX - t.x, e.clientY - t.y) > 6) return
+    const { b, p } = t
     const note: NoteEvent = drumView
       ? { pitch: p, drum: p - PAD_PITCH, start: b, dur: Math.min(grid, 0.25), vel: 100, hand: 'L' }
       : { pitch: p, start: b, dur: Math.max(grid, 0.5), vel: 80, hand: p < 60 ? 'L' : 'R' }
@@ -204,7 +215,10 @@ export function Create() {
   // ---- library / files ----
   const save = () => {
     const c = { ...comp, updated: Date.now() }
-    library.set((l) => ({ items: [c, ...l.items.filter((x) => x.id !== c.id)] }))
+    if (!library.set((l) => ({ items: [c, ...l.items.filter((x) => x.id !== c.id)] }))) {
+      alert('Not saved: the browser storage for this app is full. Export the song as .mid to keep it, or delete old songs in "My songs" and save again.')
+      return
+    }
     setCompRaw(c); setDirty(false)
   }
   const exportMidi = () => {
@@ -223,11 +237,13 @@ export function Create() {
         return { id: uid(), name: drums ? 'Drums' : `Track ${i + 1}`, instrument: 'piano', notes, drums }
       })
       if (!tracks.length) throw new Error('no notes')
+      if (!discardOk()) return
       stop(); setComp({ ...newComposition(), name: f.name.replace(/\.midi?$/i, ''), bpm: m.bpm, tracks }); setActive(0)
     } catch (err) { alert(`Could not read that MIDI file (${err instanceof Error ? err.message : err}).`) }
   }
 
   const busy = state === 'playing' || state === 'recording'
+  const discardOk = () => !(dirty || rec.current) || confirm(`Discard the unsaved changes to "${comp.name}"?`)
   return (
     <div className="page" style={{ maxWidth: 1400 }}>
       <div className="page-head">
@@ -237,7 +253,7 @@ export function Create() {
         </div>
         <div className="row">
           <button className="btn" onClick={() => setShowLib(!showLib)}>📂 My songs ({lib.items.length})</button>
-          <button className="btn" onClick={() => { stop(); setComp(newComposition()); setActive(0) }}>New</button>
+          <button className="btn" onClick={() => { if (!discardOk()) return; stop(); setComp(newComposition()); setActive(0) }}>New</button>
           <button className="btn primary" onClick={save}>Save</button>
           <button className="btn" onClick={exportMidi} disabled={!everything.length}>Export .mid</button>
           <label className="btn">Import .mid<input type="file" accept=".mid,.midi,audio/midi" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void importMidi(f); e.target.value = '' }} /></label>
@@ -252,7 +268,7 @@ export function Create() {
             <div key={c.id} className="row" style={{ justifyContent: 'space-between' }}>
               <span>{c.name} <span className="sub">· {c.tracks.reduce((a, t) => a + t.notes.length, 0)} notes · {c.bpm} BPM · {new Date(c.updated).toLocaleString()}</span></span>
               <span className="row">
-                <button className="btn small" onClick={() => { stop(); setCompRaw(structuredClone(c)); setActive(0); setDirty(false); setShowLib(false); history.current = [] }}>Open</button>
+                <button className="btn small" onClick={() => { if (!discardOk()) return; stop(); setCompRaw(structuredClone(c)); setActive(0); setDirty(false); setShowLib(false); history.current = [] }}>Open</button>
                 <button className="btn small danger" onClick={() => { if (confirm(`Delete "${c.name}"?`)) library.set((l) => ({ items: l.items.filter((x) => x.id !== c.id) })) }}>Delete</button>
               </span>
             </div>
@@ -275,6 +291,9 @@ export function Create() {
         <button className="btn small" onClick={() => updateTrack(active, (t) => ({ ...t, notes: quantize(t.notes, grid) }))} disabled={!track.notes.length} title="Snap the selected track to the grid">Quantize</button>
         <button className="btn small" onClick={() => updateTrack(active, (t) => ({ ...t, notes: quantize(t.notes, grid, 0.5) }))} disabled={!track.notes.length} title="Move notes half-way to the grid – tighter but still human">Quantize 50%</button>
         <label className="row" style={{ gap: 6 }}>Zoom <input type="range" min={0.5} max={2.5} step={0.1} value={zoom} onChange={(e) => setZoom(+e.target.value)} /></label>
+        {sel !== null && track.notes[sel] && (
+          <button className="btn small danger" onClick={() => { updateTrack(active, (t) => ({ ...t, notes: t.notes.filter((_, k) => k !== sel) })); setSel(null) }}>Delete note</button>
+        )}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 14 }}>
@@ -314,7 +333,7 @@ export function Create() {
         </div>
 
         <div className="roll" ref={rollRef} onPointerMove={onMove} onPointerUp={() => { drag.current = null }}>
-          <div style={{ position: 'relative', width: KEYW + beats * pxBeat, height: rows.length * ROW + 18 }} onPointerDown={onGridDown}>
+          <div style={{ position: 'relative', width: KEYW + beats * pxBeat, height: rows.length * ROW + 18 }} onPointerDown={onGridDown} onPointerUp={onGridUp} onPointerCancel={() => { tap.current = null }}>
             {/* bar numbers + chord suggestions */}
             {Array.from({ length: beats / bpb }, (_, b) => (
               <div key={b} className="sub" style={{ position: 'absolute', left: KEYW + b * bpb * pxBeat + 4, top: 0, fontSize: 11, pointerEvents: 'none' }}>{b + 1}{chords[b] ? ` · ${chords[b].name}` : ''}</div>

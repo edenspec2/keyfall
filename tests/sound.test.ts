@@ -163,7 +163,8 @@ describe('MIDI learn', () => {
     expect(getParam('cutoff')).toBe(40)
     handleCC(31, 100) // a new knob takes the first free control (Brightness), never one already assigned
     expect(getParam('cutoff')).toBe(40)
-    expect(ccMap.get().map[31]?.target).toBe('brightness')
+    expect(ccFor('brightness')).toBe(31)
+    expect(ccMap.get().map[31]).toBeUndefined() // picked up automatically: this session only, not saved
     clearCC('cutoff')
     expect(ccFor('cutoff')).toBeNull()
   })
@@ -208,5 +209,16 @@ describe('knobs work without MIDI learn', () => {
     expect(autoTarget(22, {})).toBe('brightness')
     expect(autoTarget(22, { 74: { target: 'brightness' } })).toBe('timbre')
     expect(autoTarget(74, { 99: { target: 'brightness' } })).toBe('timbre') // its slot is taken by a learned knob
+  })
+  it('a stray CC never takes a knob for good, and a real knob takes its slot back', () => {
+    handleCC(0, 3) // bank select: never a knob
+    expect(WIZARD.concat(['reverbDecay', 'cutoff', 'keysVol', 'master'] as const).some((t) => ccFor(t) === 0)).toBe(false)
+    handleCC(28, 65) // e.g. the main encoder: picked up for now…
+    const grabbed = WIZARD.concat(['reverbDecay', 'cutoff', 'keysVol', 'master'] as const).find((t) => ccFor(t) === 28)!
+    expect(grabbed).toBeTruthy()
+    expect(ccMap.get().map[28]).toBeUndefined() // …but not saved
+    const factoryCC = [74, 71, 76, 77, 93, 18, 19, 16, 82, 83, 85, 17][WIZARD.concat(['reverbDecay', 'cutoff', 'keysVol', 'master'] as const).indexOf(grabbed)]
+    handleCC(factoryCC, 64) // the MiniLab knob for that slot
+    expect(ccFor(grabbed)).toBe(factoryCC)
   })
 })
