@@ -1,6 +1,11 @@
 import { useEffect, useRef } from 'react'
-import { drawScene, Effects, keyLayout, sceneGeometry, type Scene } from '../render/pianoRenderer'
+import { drawScene, Effects, keyLayout, renderOpts, sceneGeometry, type Scene } from '../render/pianoRenderer'
+import { lightEngine } from '../audio/audioEngine'
 import { midi } from '../midi/midiInput'
+
+// Phones: at their full pixel density (about 2.75) the canvas has ~7× a PC's pixels to fill every frame.
+const lite = renderOpts.lite = lightEngine()
+const MAX_DPR = lite ? 1.5 : Infinity
 
 /**
  * Canvas that redraws every animation frame from `scene()`. React renders it once;
@@ -24,7 +29,7 @@ export function PianoCanvas({ scene, tick, fx }: { scene: () => Scene; tick?: ()
     const frame = () => {
       raf = requestAnimationFrame(frame)
       tickRef.current?.()
-      const dpr = window.devicePixelRatio || 1
+      const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR)
       const w = canvas.clientWidth, h = canvas.clientHeight
       if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
         canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr)

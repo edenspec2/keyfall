@@ -107,6 +107,8 @@ const JUDGE_TEXT: Record<Judgment, string> = { perfect: 'PERFECT', good: 'GOOD',
 const judgeColor = (k: Judgment) => (k === 'perfect' ? pal.perfect : k === 'good' || k === 'hit' ? pal.ok : k === 'early' ? pal.warn : k === 'late' ? pal.hands.L[0] : pal.bad)
 
 const reduceMotion = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null
+/** Phones (light engine): draw like reduced motion – no blurred glow, sparks or dust – to leave the CPU to the audio. */
+export const renderOpts = { lite: false }
 
 /**
  * Short-lived hit effects (judgment pops, shockwave rings, sparks, combo milestones) and per-key press depth.
@@ -356,7 +358,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, W: number, H: number, s
   const laneX = (d: number) => geo.padX0 + d * geo.padW
   const pxPerBeat = hitY / s.beatsVisible
   const yOf = (beat: number) => hitY - (beat - s.beat) * pxPerBeat
-  const calm = !!reduceMotion?.matches
+  const calm = renderOpts.lite || !!reduceMotion?.matches
   const dt = fx ? Math.min(0.05, Math.max(0, (now - fx.last) / 1000)) : 0
   if (fx) fx.last = now
   const isUser = (n: NoteEvent) => s.userHands === 'both' || s.userHands === n.hand

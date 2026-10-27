@@ -18,6 +18,31 @@ const RAMP = 0.04 // s: long enough to avoid zipper noise from 7-bit knob steps,
 const XFADE = 0.03 // s: switching an effect in or out
 const REVERB_XFADE = 0.15 // s: from the old reverb to a newly rendered one
 
+/** A drum kit: what each pad plays, and every node it built (disposed together when the kit is dropped). */
+interface DrumSet { hits: ((time: number, vel: number) => void)[]; nodes: Tone.ToneAudioNode[] }
+/** Seconds without a drum hit before the kits are disposed. */
+const KIT_IDLE = 30
+
+interface MetalOpts { decay: number; release: number; harmonicity: number; modulationIndex: number; resonance: number; octaves: number; volume: number }
+/**
+ * A metallic hit (hats, crash, kartals, manjira) played as (frequency, duration, time, velocity). Phones get
+ * high-passed noise instead of Tone's MetalSynth: its six FM oscillator pairs cost ~9 % of a PC's audio thread
+ * from the moment it exists, filtered noise about 0.5 %.
+ */
+function metal(light: boolean, o: MetalOpts, bus: Tone.ToneAudioNode, nodes: Tone.ToneAudioNode[]) {
+  if (!light) {
+    const m = new Tone.MetalSynth({ envelope: { attack: 0.001, decay: o.decay, release: o.release }, harmonicity: o.harmonicity, modulationIndex: o.modulationIndex, resonance: o.resonance, octaves: o.octaves, volume: o.volume }).connect(bus)
+    nodes.push(m)
+    return (freq: number, dur: number, t: number, v: number) => { m.triggerAttackRelease(freq, dur, t, v) }
+  }
+  const hp = new Tone.Filter(o.resonance, 'highpass').connect(bus)
+  const n = new Tone.NoiseSynth({ noise: { type: 'white' }, envelope: { attack: 0.001, decay: o.decay, sustain: 0, release: o.release }, volume: o.volume + NOISE_TRIM }).connect(hp)
+  nodes.push(hp, n)
+  return (_freq: number, dur: number, t: number, v: number) => { n.triggerAttackRelease(dur, t, v) }
+}
+/** dB added to the noise stand-in to sound as loud as the MetalSynth it replaces (measured: hats 11–13 dB, bells 4–10). */
+const NOISE_TRIM = 10
+
 /** A stage that can be switched off to save CPU, without a click. */
 interface Bypass { input: Tone.Gain; output: Tone.Gain; set(on: boolean): void }
 /**
@@ -46,10 +71,14 @@ function bypass(node: Tone.ToneAudioNode): Bypass {
 
 /** The effects chain. Keys: input → drive → filter → EQ → chorus → phaser → tremolo → keys vol; drums join after it. */
 interface Chain {
-  input: Tone.Gain; tremoloGain: Tone.Gain
-  drive: Tone.Distortion; filter: Tone.Filter; eq: Tone.EQ3; chorus: Tone.Chorus; phaser: Tone.Phaser; tremolo: Tone.Tremolo
+  input: Tone.Gain; filter: Tone.Filter; keysVol: Tone.Volume; drumsVol: Tone.Volume
+  fx: Fx | null // null in the light engine: phones get no effects at all
+}
+interface Fx {
+  tremoloGain: Tone.Gain
+  drive: Tone.Distortion; eq: Tone.EQ3; chorus: Tone.Chorus; phaser: Tone.Phaser; tremolo: Tone.Tremolo
   bypass: { drive: Bypass; eq: Bypass; phaser: Bypass }
-  keysVol: Tone.Volume; drumsVol: Tone.Volume; delay: Tone.FeedbackDelay; widener: Tone.StereoWidener
+  delay: Tone.FeedbackDelay; widener: Tone.StereoWidener
   // Two fully-wet reverbs: a new length renders into the idle one, then the sound crossfades to it.
   reverbs: [Tone.Reverb, Tone.Reverb]; reverbGains: [Tone.Gain, Tone.Gain]; reverbDry: Tone.Gain
 }
@@ -66,10 +95,9 @@ class AudioEngine {
   lastError = ''
   private native = false
   /**
-   * Light engine: notes go only through the filter, volume and limiter. A Redmi's audio thread could not keep up
-   * with the full chain (reverb, chorus, delay, widener, compressor all run continuously): its sound check measured
-   * signal inside the graph but played static, then silence. On by default on phones; 'full' or 'light' can be forced
-   * in Settings (read once, at start).
+   * Light engine: notes go only through the filter, volume and limiter, and no effects are built. A Redmi's audio
+   * thread could not keep up with the full chain: its sound check measured signal inside the graph but played static,
+   * then silence. On by default on phones; 'full' or 'light' can be forced in Settings (read once, at start).
    */
   light = false
   private out: Tone.ToneAudioNode | null = null // end of the chain, tapped by the sound check
@@ -112,8 +140,9 @@ class AudioEngine {
   private click: Tone.Synth | null = null
   private fallback: Voice | null = null
   private vibrato: Tone.Vibrato | null = null
-  private kit: ((time: number, vel: number) => void)[] = []
-  private kirtanKit: ((time: number, vel: number) => void)[] | null = null
+  private kit: DrumSet | null = null
+  private kirtanKit: DrumSet | null = null
+  private kitTimer = 0
   private lastHit: number[] = []
   private mod = 0 // mod-strip position 0..1
   private bendCents = 0
@@ -191,21 +220,37 @@ class AudioEngine {
     // Build everything before asking to resume, and don't wait for it: if this event was not a gesture the browser
     // accepts (a touch's press-down), resuming waits for the next one, and the instruments must already exist then.
     // Waiting here used to leave the app silent for good on phones.
+    // The click and the drum kits are built on first use: a Tone object costs audio-thread time from the moment it
+    // exists, connected or not (the kit's three hats alone ~27 % of a PC's audio thread with nothing playing).
     this.started = true
-    this.click = new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.001, decay: 0.04, sustain: 0, release: 0.01 }, volume: -14 }).toDestination()
     this.chain = this.makeChain()
-    // Synth sounds go through a vibrato the mod strip controls (depth 0 = no effect).
-    this.vibrato = new Tone.Vibrato(5.5, 0).connect(this.chain.input)
+    // Synth sounds go through a vibrato the mod strip controls (depth 0 = no effect). Not on phones (~1.3 % of a
+    // PC's audio thread, always): there the mod strip and the bansuri go without it.
+    this.vibrato = this.light ? null : new Tone.Vibrato(5.5, 0).connect(this.chain.input)
     this.voices.set('piano', this.makePiano())
-    this.kit = this.makeKit()
     this.apply()
     this.resume()
   }
 
   private makeChain(): Chain {
     // Gentle bus compression, then a limiter, so stacked effects and drums never clip.
-    const limiter = new Tone.Limiter(-1).toDestination()
+    // Not Tone.Limiter: it keeps the browser's 30 dB soft knee, so a signal 12 dB over came out only 1.5 dB lower.
+    const limiter = new Tone.Compressor({ threshold: -1, ratio: 20, knee: 0, attack: 0.003, release: 0.1 }).toDestination()
     this.out = limiter
+    const input = new Tone.Gain()
+    const filter = new Tone.Filter({ frequency: 20000, type: 'lowpass', rolloff: -12, Q: 0.7 })
+    if (this.light) {
+      // No effects on phones, not even idle ones: a Tone object costs audio-thread time just by existing, connected
+      // or not (measured with nothing playing, % of a PC's audio thread: phaser 3.7, widener 3.3, chorus and
+      // tremolo 1.9 each), and a budget phone is several times slower.
+      // A piano note peaks near -15 dB and its ring falls to -40 dB within a second, which a phone speaker drops:
+      // squeeze the range (the browser's compressor adds ~12 dB make-up gain itself) and add 6 dB more, so held
+      // notes stay audible; the limiter catches chords.
+      const phone = new Tone.Compressor({ threshold: -30, ratio: 3, knee: 10, attack: 0.005, release: 0.3 }).connect(new Tone.Gain(2).connect(limiter))
+      const keysVol = new Tone.Volume(0).connect(phone), drumsVol = new Tone.Volume(0).connect(phone)
+      input.connect(filter); filter.connect(keysVol)
+      return { input, filter, keysVol, drumsVol, fx: null }
+    }
     const comp = new Tone.Compressor({ threshold: -12, ratio: 3, attack: 0.005, release: 0.2 }).connect(limiter)
     const widener = new Tone.StereoWidener(0.5).connect(comp)
     const reverbDry = new Tone.Gain(1).connect(widener)
@@ -217,33 +262,27 @@ class AudioEngine {
     const delay = new Tone.FeedbackDelay({ delayTime: 0.3, feedback: 0.3, wet: 0, maxDelay: 4 })
     delay.connect(reverbDry)
     delay.connect(reverbs[0]) // only the playing reverb is fed: an idle convolver would cost CPU for nothing
-    const light = this.light
-    const keysVol = new Tone.Volume(0).connect(light ? limiter : delay)
-    const drumsVol = new Tone.Volume(0).connect(light ? limiter : delay)
+    const keysVol = new Tone.Volume(0).connect(delay)
+    const drumsVol = new Tone.Volume(0).connect(delay)
     // Tone's tremolo centres its gain on 0.5 whatever the depth; ×2 makes depth 0 exactly unity.
-    const tremoloGain = new Tone.Gain(2)
-    const tremolo = new Tone.Tremolo({ frequency: 4, depth: 0, spread: 180 }).connect(tremoloGain)
+    const tremoloGain = new Tone.Gain(2).connect(keysVol)
+    const tremolo = new Tone.Tremolo({ frequency: 4, depth: 0, spread: 180 }).connect(tremoloGain).start()
     const phaser = new Tone.Phaser({ frequency: 0.5, octaves: 3, baseFrequency: 350, wet: 0 })
-    const chorus = new Tone.Chorus({ frequency: 1.5, delayTime: 3.5, depth: 0.7, wet: 0 })
+    const chorus = new Tone.Chorus({ frequency: 1.5, delayTime: 3.5, depth: 0.7, wet: 0 }).start()
     const eq = new Tone.EQ3(0, 0, 0)
-    const filter = new Tone.Filter({ frequency: 20000, type: 'lowpass', rolloff: -12, Q: 0.7 })
     const drive = new Tone.Distortion({ distortion: 0.3, wet: 0 })
     // Measured CPU: filter, chorus and tremolo are nearly free, so they stay in the path for good;
     // drive, EQ and phaser cost 8–21 % each and switch in and out with a crossfade.
     const b = { drive: bypass(drive), eq: bypass(eq), phaser: bypass(phaser) }
-    const input = new Tone.Gain()
-    // Light: the effect nodes still exist (so every knob keeps working on PCs) but nothing feeds them, so they cost nothing.
-    if (light) { input.connect(filter); filter.connect(keysVol); comp.disconnect() } else { // unhooked: the delay/reverb/widener branch is never rendered
-      chorus.start(); tremolo.start()
-      input.connect(b.drive.input); b.drive.output.connect(filter); filter.connect(b.eq.input); b.eq.output.connect(chorus)
-      chorus.connect(b.phaser.input); b.phaser.output.connect(tremolo); tremoloGain.connect(keysVol)
-    }
-    return { input, tremoloGain, drive, filter, eq, chorus, phaser, tremolo, bypass: b, keysVol, drumsVol, delay, widener, reverbs, reverbGains, reverbDry }
+    input.connect(b.drive.input); b.drive.output.connect(filter); filter.connect(b.eq.input); b.eq.output.connect(chorus)
+    chorus.connect(b.phaser.input); b.phaser.output.connect(tremolo)
+    return { input, filter, keysVol, drumsVol, fx: { tremoloGain, drive, eq, chorus, phaser, tremolo, bypass: b, delay, widener, reverbs, reverbGains, reverbDry } }
   }
 
   /** Effects at zero still cost CPU: drive, EQ and phaser leave the path (with a crossfade) while they're at zero. */
   private rewire(e: Effective) {
-    const b = this.chain!.bypass
+    const b = this.chain!.fx?.bypass
+    if (!b) return
     b.drive.set(e.drive > 0)
     b.eq.set(e.eqLow !== 0 || e.eqMid !== 0 || e.eqHigh !== 0)
     b.phaser.set(e.phaser > 0)
@@ -251,14 +290,16 @@ class AudioEngine {
 
   /** Reverb mix as an equal-power crossfade, like Tone's own wet/dry. */
   private reverbMix(mix: number) {
-    const c = this.chain!
+    const c = this.chain!.fx
+    if (!c) return
     c.reverbDry.gain.rampTo(Math.cos(mix * Math.PI / 2), RAMP)
     c.reverbGains[this.reverbOn].gain.rampTo(Math.sin(mix * Math.PI / 2), RAMP)
   }
 
   /** New reverb length: render it into the idle reverb, then crossfade, so the playing tail is never cut off. */
   private async reverbLength(decay: number, preDelay: number) {
-    const c = this.chain!, job = ++this.reverbJob
+    const c = this.chain!.fx, job = ++this.reverbJob
+    if (!c) return
     const from = this.reverbOn, to = 1 - from, next = c.reverbs[to]
     if (next.decay !== decay) next.decay = decay
     if (next.preDelay !== preDelay) next.preDelay = preDelay
@@ -287,18 +328,21 @@ class AudioEngine {
     ramp('cutoff', c.filter.frequency)
     ramp('resonance', c.filter.Q)
     if (a.filterType !== e.filterType) c.filter.type = e.filterType
-    ramp('drive', c.drive.wet)
-    ramp('eqLow', c.eq.low); ramp('eqMid', c.eq.mid); ramp('eqHigh', c.eq.high)
-    ramp('chorus', c.chorus.wet)
-    ramp('phaser', c.phaser.wet)
-    ramp('tremolo', c.tremolo.depth, e.tremolo * 0.7)
-    if (a.lfoRate !== e.lfoRate) { c.phaser.frequency.rampTo(e.lfoRate / 4, RAMP); c.tremolo.frequency.rampTo(e.lfoRate, RAMP) }
     ramp('keysVol', c.keysVol.volume); ramp('drumsVol', c.drumsVol.volume)
-    if (a.delayBeats !== e.delayBeats || this.appliedBpm !== this.bpm) c.delay.delayTime.rampTo(Math.min(4, e.delayBeats * 60 / this.bpm), 0.05)
+    const f = c.fx
+    if (f) {
+      ramp('drive', f.drive.wet)
+      ramp('eqLow', f.eq.low); ramp('eqMid', f.eq.mid); ramp('eqHigh', f.eq.high)
+      ramp('chorus', f.chorus.wet)
+      ramp('phaser', f.phaser.wet)
+      ramp('tremolo', f.tremolo.depth, e.tremolo * 0.7)
+      if (a.lfoRate !== e.lfoRate) { f.phaser.frequency.rampTo(e.lfoRate / 4, RAMP); f.tremolo.frequency.rampTo(e.lfoRate, RAMP) }
+      if (a.delayBeats !== e.delayBeats || this.appliedBpm !== this.bpm) f.delay.delayTime.rampTo(Math.min(4, e.delayBeats * 60 / this.bpm), 0.05)
+      ramp('delayFeedback', f.delay.feedback); ramp('delayMix', f.delay.wet)
+      ramp('width', f.widener.width)
+    }
     this.appliedBpm = this.bpm
-    ramp('delayFeedback', c.delay.feedback); ramp('delayMix', c.delay.wet)
     if (a.reverbMix !== e.reverbMix) this.reverbMix(e.reverbMix)
-    ramp('width', c.widener.width)
     if (this.vibrato) ramp('vibratoRate', this.vibrato.frequency)
     // A new reverb length is a full impulse render; wait until the knob rests, then crossfade to it.
     if (Math.abs((a.reverbDecay ?? 0) - e.reverbDecay) > 0.02 || a.reverbPreDelay !== e.reverbPreDelay) {
@@ -332,59 +376,67 @@ class AudioEngine {
   }
 
   /** A small synthesized kit (no samples, works offline): Kick, Snare, Closed hat, Open hat, Clap, Low tom, High tom, Crash. */
-  private makeKit() {
+  private makeKit(): DrumSet {
     // Drums skip the keys' filter/drive/modulation but share the delay and reverb (and their own volume).
-    const bus = new Tone.Gain(0.8).connect(this.chain!.drumsVol)
-    const kick = new Tone.MembraneSynth({ pitchDecay: 0.05, octaves: 6, envelope: { attack: 0.001, decay: 0.4, sustain: 0, release: 0.1 } }).connect(bus)
-    const snareBody = new Tone.MembraneSynth({ pitchDecay: 0.02, octaves: 2, envelope: { attack: 0.001, decay: 0.12, sustain: 0 }, volume: -8 }).connect(bus)
-    const snare = new Tone.NoiseSynth({ noise: { type: 'white' }, envelope: { attack: 0.001, decay: 0.18, sustain: 0 }, volume: -10 }).connect(new Tone.Filter(1800, 'highpass').connect(bus))
-    const hat = (decay: number) => new Tone.MetalSynth({ envelope: { attack: 0.001, decay, release: 0.01 }, harmonicity: 5.1, modulationIndex: 32, resonance: 4000, octaves: 1.5, volume: -22 }).connect(bus)
+    const nodes: Tone.ToneAudioNode[] = [], k = <T extends Tone.ToneAudioNode>(n: T) => (nodes.push(n), n)
+    const bus = k(new Tone.Gain(0.8)).connect(this.chain!.drumsVol)
+    const kick = k(new Tone.MembraneSynth({ pitchDecay: 0.05, octaves: 6, envelope: { attack: 0.001, decay: 0.4, sustain: 0, release: 0.1 } })).connect(bus)
+    const snareBody = k(new Tone.MembraneSynth({ pitchDecay: 0.02, octaves: 2, envelope: { attack: 0.001, decay: 0.12, sustain: 0 }, volume: -8 })).connect(bus)
+    const snare = k(new Tone.NoiseSynth({ noise: { type: 'white' }, envelope: { attack: 0.001, decay: 0.18, sustain: 0 }, volume: -10 })).connect(k(new Tone.Filter(1800, 'highpass')).connect(bus))
+    const hat = (decay: number) => metal(this.light, { decay, release: 0.01, harmonicity: 5.1, modulationIndex: 32, resonance: 4000, octaves: 1.5, volume: -22 }, bus, nodes)
     const closed = hat(0.05), open = hat(0.35), crash = hat(1.4)
-    const clap = new Tone.NoiseSynth({ noise: { type: 'pink' }, envelope: { attack: 0.002, decay: 0.16, sustain: 0 }, volume: -8 }).connect(new Tone.Filter(1200, 'bandpass').connect(bus))
-    const tom = new Tone.MembraneSynth({ pitchDecay: 0.08, octaves: 3, envelope: { attack: 0.001, decay: 0.35, sustain: 0 }, volume: -4 }).connect(bus)
-    const tomHi = new Tone.MembraneSynth({ pitchDecay: 0.08, octaves: 3, envelope: { attack: 0.001, decay: 0.3, sustain: 0 }, volume: -4 }).connect(bus)
-    return [
+    const clap = k(new Tone.NoiseSynth({ noise: { type: 'pink' }, envelope: { attack: 0.002, decay: 0.16, sustain: 0 }, volume: -8 })).connect(k(new Tone.Filter(1200, 'bandpass')).connect(bus))
+    const tom = k(new Tone.MembraneSynth({ pitchDecay: 0.08, octaves: 3, envelope: { attack: 0.001, decay: 0.35, sustain: 0 }, volume: -4 })).connect(bus)
+    const tomHi = k(new Tone.MembraneSynth({ pitchDecay: 0.08, octaves: 3, envelope: { attack: 0.001, decay: 0.3, sustain: 0 }, volume: -4 })).connect(bus)
+    return { nodes, hits: [
       (t: number, v: number) => kick.triggerAttackRelease('C1', 0.3, t, v),
       (t: number, v: number) => { snare.triggerAttackRelease(0.15, t, v); snareBody.triggerAttackRelease('G2', 0.1, t, v) },
-      (t: number, v: number) => closed.triggerAttackRelease(300, 0.05, t, v),
-      (t: number, v: number) => open.triggerAttackRelease(300, 0.3, t, v),
+      (t: number, v: number) => closed(300, 0.05, t, v),
+      (t: number, v: number) => open(300, 0.3, t, v),
       (t: number, v: number) => clap.triggerAttackRelease(0.12, t, v),
       (t: number, v: number) => tom.triggerAttackRelease('G2', 0.3, t, v),
       (t: number, v: number) => tomHi.triggerAttackRelease('D3', 0.25, t, v),
-      (t: number, v: number) => crash.triggerAttackRelease(300, 1.2, t, v * 0.8),
-    ]
+      (t: number, v: number) => crash(300, 1.2, t, v * 0.8),
+    ] }
   }
 
   /** Kirtan kit: dholak strokes (Ge, Na, Tin, Ka), kartals, manjira, ghungroo and a deep khol – all synthesized. */
-  private makeKirtanKit() {
-    const bus = new Tone.Gain(0.8).connect(this.chain!.drumsVol)
+  private makeKirtanKit(): DrumSet {
+    const nodes: Tone.ToneAudioNode[] = [], k = <T extends Tone.ToneAudioNode>(n: T) => (nodes.push(n), n)
+    const bus = k(new Tone.Gain(0.8)).connect(this.chain!.drumsVol)
     const skin = (pitchDecay: number, octaves: number, decay: number, volume = 0) =>
-      new Tone.MembraneSynth({ pitchDecay, octaves, envelope: { attack: 0.001, decay, sustain: 0, release: 0.05 }, volume }).connect(bus)
+      k(new Tone.MembraneSynth({ pitchDecay, octaves, envelope: { attack: 0.001, decay, sustain: 0, release: 0.05 }, volume })).connect(bus)
     const ge = skin(0.12, 2.5, 0.55), khol = skin(0.25, 3, 0.8, -5)
     const na = skin(0.008, 1.2, 0.28, -6), tin = skin(0.006, 1, 0.07, -8)
-    const ka = new Tone.NoiseSynth({ noise: { type: 'pink' }, envelope: { attack: 0.001, decay: 0.08, sustain: 0 }, volume: 10 }).connect(new Tone.Filter(1100, 'bandpass').connect(bus))
-    const metal = (decay: number, harmonicity: number, resonance: number, volume: number) =>
-      new Tone.MetalSynth({ envelope: { attack: 0.001, decay, release: 0.05 }, harmonicity, modulationIndex: 20, resonance, octaves: 1, volume }).connect(bus)
-    const kartal = metal(0.12, 7.3, 6500, -11), manjira = metal(1.1, 12.1, 5200, -14)
-    const ghungroo = new Tone.NoiseSynth({ noise: { type: 'white' }, envelope: { attack: 0.004, decay: 0.12, sustain: 0 }, volume: -8 }).connect(new Tone.Filter(6500, 'highpass').connect(bus))
-    return [
+    const ka = k(new Tone.NoiseSynth({ noise: { type: 'pink' }, envelope: { attack: 0.001, decay: 0.08, sustain: 0 }, volume: 10 })).connect(k(new Tone.Filter(1100, 'bandpass')).connect(bus))
+    const bell = (decay: number, harmonicity: number, resonance: number, volume: number) =>
+      metal(this.light, { decay, release: 0.05, harmonicity, modulationIndex: 20, resonance, octaves: 1, volume }, bus, nodes)
+    const kartal = bell(0.12, 7.3, 6500, -11), manjira = bell(1.1, 12.1, 5200, -14)
+    const ghungroo = k(new Tone.NoiseSynth({ noise: { type: 'white' }, envelope: { attack: 0.004, decay: 0.12, sustain: 0 }, volume: -8 })).connect(k(new Tone.Filter(6500, 'highpass')).connect(bus))
+    return { nodes, hits: [
       (t: number, v: number) => ge.triggerAttackRelease('A1', 0.4, t, v), // Ge: low dholak, pitch glides down
       (t: number, v: number) => na.triggerAttackRelease('D4', 0.2, t, v), // Na: open treble ring
       (t: number, v: number) => tin.triggerAttackRelease('F4', 0.06, t, v), // Tin: closed treble
       (t: number, v: number) => ka.triggerAttackRelease(0.05, t, v), // Ka: flat-hand slap
-      (t: number, v: number) => kartal.triggerAttackRelease(900, 0.1, t, v), // Kartals: bright jingle
-      (t: number, v: number) => manjira.triggerAttackRelease(1200, 1, t, v * 0.8), // Manjira: small cymbals that ring
+      (t: number, v: number) => kartal(900, 0.1, t, v), // Kartals: bright jingle
+      (t: number, v: number) => manjira(1200, 1, t, v * 0.8), // Manjira: small cymbals that ring
       (t: number, v: number) => ghungroo.triggerAttackRelease(0.1, t, v), // Ghungroo: ankle bells / shaker
       (t: number, v: number) => khol.triggerAttackRelease('E1', 0.6, t, v), // Khol: deep mridanga bass
-    ]
+    ] }
   }
 
   /** Play drum `k` (0–7) of the current kit (or `kitId`). Each drum is monophonic, so start times must strictly increase. */
   drum(k: number, time = this.now(), vel = 100, kitId: Kit = drumKit.id) {
     if (!this.started) return
-    const hits = kitId === 'kirtan' ? (this.kirtanKit ??= this.makeKirtanKit()) : this.kit
-    const hit = hits[k]
+    const hit = (kitId === 'kirtan' ? (this.kirtanKit ??= this.makeKirtanKit()) : (this.kit ??= this.makeKit())).hits[k]
     if (!hit) return
+    // A built kit costs audio time even when silent (~6 % of a PC's audio thread): after a quiet spell, drop both
+    // kits; the next hit rebuilds one.
+    clearTimeout(this.kitTimer)
+    this.kitTimer = window.setTimeout(() => {
+      for (const set of [this.kit, this.kirtanKit]) set?.nodes.forEach((n) => n.dispose())
+      this.kit = this.kirtanKit = null
+    }, KIT_IDLE * 1000)
     const slot = kitId === 'kirtan' ? k + 8 : k
     const t = Math.max(time, this.now(), (this.lastHit[slot] ?? 0) + 0.01)
     this.lastHit[slot] = t
@@ -409,23 +461,30 @@ class AudioEngine {
     for (let o = 1; o <= 7; o++) for (const n of ['C', 'Ds', 'Fs', 'A']) urls[`${n.replace('s', '#')}${o}`] = `${n}${o}.mp3`
     urls.A0 = 'A0.mp3'
     urls.C8 = 'C8.mp3'
-    return new Tone.Sampler({
-      urls,
-      baseUrl: `${import.meta.env.BASE_URL}samples/piano/`,
-      release: 0.9,
-      onload: () => { this.pianoLoaded = true },
-      onerror: () => {
-        // Missing samples: fall back to a light synth so the app still makes sound.
-        this.pianoFailed = true
-        const v = this.makeSynth('piano')
-        this.voices.set('piano', v)
-        this.applyVoice('piano', v)
-      },
-    }).connect(this.chain!.input)
+    const baseUrl = `${import.meta.env.BASE_URL}samples/piano/`
+    const failed = () => {
+      // Missing samples: fall back to a light synth so the app still makes sound.
+      this.pianoFailed = true
+      const v = this.makeSynth('piano')
+      this.voices.set('piano', v)
+      this.applyVoice('piano', v)
+    }
+    if (!this.light) return new Tone.Sampler({ urls, baseUrl, release: 0.9, onload: () => { this.pianoLoaded = true }, onerror: failed }).connect(this.chain!.input)
+    // Phones: the 30 full recordings decode to 162 MB. Decode one at a time and keep 4 s in mono (about 23 MB):
+    // a phone speaker is mono and can't play the quiet tail anyway.
+    const s = new Tone.Sampler({ release: 0.9 }).connect(this.chain!.input)
+    void (async () => {
+      try {
+        const files = await Promise.all(Object.entries(urls).map(async ([note, f]) => [note, await (await fetch(baseUrl + f)).arrayBuffer()] as const))
+        for (const [note, data] of files) s.add(note as Tone.Unit.Note, shorten(this.ctx, await this.ctx.decodeAudioData(data), 4))
+        this.pianoLoaded = true
+      } catch { failed() }
+    })()
+    return s
   }
 
   private makeSynth(id: InstrumentId): Voice {
-    const out = this.vibrato ?? Tone.getDestination()
+    const out = this.vibrato ?? this.chain!.input
     const v = id === 'epiano' ? new Tone.PolySynth(Tone.FMSynth, { harmonicity: 3, modulationIndex: 6, envelope: { attack: 0.002, decay: 1.2, sustain: 0.25, release: 0.8 }, volume: -10 })
       : id === 'strings' ? new Tone.PolySynth(Tone.AMSynth, { envelope: { attack: 0.25, decay: 0.3, sustain: 0.8, release: 1.4 }, volume: -12 })
       // Three stacked saws; Timbre sets their detune spread.
@@ -448,7 +507,7 @@ class AudioEngine {
     let v = this.voices.get(id)
     if (!v) { v = this.makeSynth(id); this.voices.set(id, v); this.applyVoice(id, v) }
     // Sampler not loaded yet: use the fallback synth rather than dropping the note.
-    if (v instanceof Tone.Sampler && !v.loaded) {
+    if (v instanceof Tone.Sampler && !this.pianoLoaded) {
       if (!this.fallback) { this.fallback = this.makeSynth('piano'); this.applyVoice('piano', this.fallback) }
       return this.fallback
     }
@@ -494,10 +553,12 @@ class AudioEngine {
   }
   private lastClick = 0
   metronome(time: number, accent: boolean) {
+    if (!this.started) return
+    this.click ??= new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.001, decay: 0.04, sustain: 0, release: 0.01 }, volume: -14 }).toDestination()
     // A monophonic synth needs strictly increasing start times.
     const t = Math.max(time, this.now(), this.lastClick + 0.005)
     this.lastClick = t
-    this.click?.triggerAttackRelease(accent ? 'C6' : 'G5', 0.03, t, accent ? 1 : 0.6)
+    this.click.triggerAttackRelease(accent ? 'C6' : 'G5', 0.03, t, accent ? 1 : 0.6)
   }
   /** Silence everything (stop/seek). */
   panic() {
@@ -512,6 +573,19 @@ class AudioEngine {
   setVolume(v01: number) { Tone.getDestination().volume.rampTo(v01 <= 0 ? -80 : Math.max(-80, 20 * Math.log10(v01)), RAMP) }
   /** Measured output latency in seconds when the browser reports it (Chrome does). */
   get outputLatency() { return (this.ctx.outputLatency || 0) + (this.ctx.baseLatency || 0) }
+}
+
+/** The first `sec` seconds of a recording as one (mono) channel, faded out over its last second if cut. */
+export function shorten(ctx: BaseAudioContext, b: AudioBuffer, sec: number) {
+  const n = Math.min(b.length, Math.round(sec * b.sampleRate)), fade = Math.min(n, b.sampleRate)
+  const out = ctx.createBuffer(1, n, b.sampleRate), d = out.getChannelData(0)
+  // A block copy, one add per extra channel, then one scaling pass (no division per sample): 30 notes load on a phone.
+  d.set(b.getChannelData(0).subarray(0, n))
+  for (let ch = 1; ch < b.numberOfChannels; ch++) { const x = b.getChannelData(ch); for (let i = 0; i < n; i++) d[i] += x[i] }
+  const k = 1 / b.numberOfChannels, f0 = n < b.length ? n - fade : n
+  if (k !== 1) for (let i = 0; i < f0; i++) d[i] *= k
+  for (let i = f0; i < n; i++) d[i] *= k * (n - i) / fade
+  return out
 }
 
 /** 'auto' (light on phones and tablets), 'full' or 'light'; kept in its own key so the choice survives a reload. */
