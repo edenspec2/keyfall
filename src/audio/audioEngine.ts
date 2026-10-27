@@ -28,6 +28,8 @@ class AudioEngine {
   started = false
   pianoLoaded = false
   pianoFailed = false
+  /** Last audio error, shown in Settings so a silent device can be diagnosed without dev tools. */
+  lastError = ''
   private inst: InstrumentId = 'piano'
   private voices = new Map<InstrumentId, Voice>()
   private sustained = new Set<number>() // released while the pedal was down
@@ -79,13 +81,20 @@ class AudioEngine {
    */
   start() {
     if (this.starting) { this.resume(); return this.starting }
-    return (this.starting = this.boot().catch((err) => { this.starting = null; throw err })) // a failed start can be retried
+    return (this.starting = this.boot().catch((err) => { this.starting = null; this.lastError = String(err); throw err })) // a failed start can be retried
   }
   /**
    * Ask the browser to run the audio clock. Called from every gesture until it runs: on phones a touch only counts
    * as a gesture when the finger lifts, and a phone can suspend audio again (screen lock, a call).
    */
-  resume() { const c = this.ctx; if (c.state !== 'running') void c.resume().catch(() => {}) }
+  resume() { const c = this.ctx; if (c.state !== 'running') void c.resume().catch((err) => { this.lastError = `resume: ${err}` }) }
+  /** One line for the status readout: is the clock running, at what rate and latency, and is the piano in. */
+  status() {
+    if (!this.started) return 'Not started – tap the screen once'
+    const c = this.ctx
+    const piano = this.pianoFailed ? 'piano samples failed (synth piano)' : this.pianoLoaded ? 'piano loaded' : 'piano loading (synth meanwhile)'
+    return `${c.state} · ${Math.round(c.sampleRate / 100) / 10} kHz · ${Math.round(this.outputLatency * 1000)} ms · ${piano}`
+  }
   /** True once sound can actually be heard. */
   get running() { return this.started && this.ctx.state === 'running' }
   private async boot() {

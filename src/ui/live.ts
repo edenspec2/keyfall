@@ -34,6 +34,7 @@ export function initLiveInput() {
     else audio.setSustain(e.down)
   })
   midi.onCC((e) => handleCC(e.cc, e.raw))
+  window.addEventListener('unhandledrejection', (e) => { audio.lastError = String(e.reason?.message ?? e.reason) })
 
   const applySettings = () => {
     const s = settings.get()

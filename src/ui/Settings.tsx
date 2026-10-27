@@ -98,6 +98,32 @@ function PadLearn() {
 }
 
 /** Tap along to 16 clicks; the median offset becomes the timing calibration. */
+/**
+ * Audio status plus a beep that bypasses the whole sound engine. If the beep is heard but notes are not, the app is at
+ * fault; if neither is heard, the phone's output is (volume, or Android sending audio to the USB keyboard).
+ */
+function AudioCheck() {
+  useTicker(500)
+  const beep = () => {
+    const C = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+    const c = new C()
+    const o = c.createOscillator(), g = c.createGain()
+    o.frequency.value = 660
+    g.gain.setValueAtTime(0.25, c.currentTime); g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.5)
+    o.connect(g).connect(c.destination)
+    void c.resume().then(() => { o.start(); o.stop(c.currentTime + 0.5); setTimeout(() => void c.close(), 900) })
+  }
+  return (
+    <div className="col" style={{ gap: 6 }}>
+      <p className="sub">Audio: <b className="mono">{audio.status()}</b>{audio.lastError && <><br />Last error: <span className="mono">{audio.lastError}</span></>}</p>
+      <div className="row">
+        <button className="btn small" onClick={beep}>Direct test beep</button>
+        <span className="sub" style={{ fontSize: 'var(--fs-sm)' }}>No beep either? Turn up the media volume, and on Android try unplugging the keyboard: some phones send all sound to a USB device.</span>
+      </div>
+    </div>
+  )
+}
+
 function Calibration() {
   const st = useStore(settings)
   const [phase, setPhase] = useState<'idle' | 'running' | 'done'>('idle')
@@ -186,6 +212,7 @@ export function Settings({ rerunSetup }: { rerunSetup: () => void }) {
           <span className="sub" style={{ marginTop: 18 }}>{audio.pianoFailed ? 'Piano samples missing – using a synth piano.' : audio.pianoLoaded ? 'Sampled grand piano loaded.' : audio.started ? 'Loading piano…' : ''}</span>
         </div>
         <label className="row" style={{ gap: 6 }}><input type="checkbox" checked={st.computerKeys} onChange={(e) => settings.set({ computerKeys: e.target.checked })} /> Play with the computer keyboard too (<span className="kbd">A</span>–<span className="kbd">;</span> white keys, <span className="kbd">W E T Y U O P</span> black keys, <span className="kbd">Z</span>/<span className="kbd">X</span> octave)</label>
+        <AudioCheck />
       </section>
       <section className="card col"><h2>Timing calibration</h2><Calibration /></section>
       <section className="card col">
