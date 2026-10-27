@@ -77,13 +77,25 @@ class AudioEngine {
    * Must run inside a user gesture (browser autoplay policy). Safe to call repeatedly, also concurrently:
    * the first click often calls it twice at once, which used to build two contexts and two effect chains.
    */
-  start() { return (this.starting ??= this.boot().catch((err) => { this.starting = null; throw err })) } // a failed start can be retried
+  start() {
+    if (this.starting) { this.resume(); return this.starting }
+    return (this.starting = this.boot().catch((err) => { this.starting = null; throw err })) // a failed start can be retried
+  }
+  /**
+   * Ask the browser to run the audio clock. Called from every gesture until it runs: on phones a touch only counts
+   * as a gesture when the finger lifts, and a phone can suspend audio again (screen lock, a call).
+   */
+  resume() { const c = this.ctx; if (c.state !== 'running') void c.resume().catch(() => {}) }
+  /** True once sound can actually be heard. */
+  get running() { return this.started && this.ctx.state === 'running' }
   private async boot() {
     const prev = Tone.getContext()
     // lookAhead 0 because we schedule with explicit times.
     Tone.setContext(new Tone.Context({ latencyHint: this.latencyHint, lookAhead: 0 }))
     void (prev as Tone.Context).close().catch(() => {}) // the default context Tone made before the click; two live contexts compete for the device
-    await Tone.start()
+    // Build everything before asking to resume, and don't wait for it: if this event was not a gesture the browser
+    // accepts (a touch's press-down), resuming waits for the next one, and the instruments must already exist then.
+    // Waiting here used to leave the app silent for good on phones.
     this.started = true
     this.click = new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.001, decay: 0.04, sustain: 0, release: 0.01 }, volume: -14 }).toDestination()
     this.chain = this.makeChain()
@@ -92,6 +104,7 @@ class AudioEngine {
     this.voices.set('piano', this.makePiano())
     this.kit = this.makeKit()
     this.apply()
+    this.resume()
   }
 
   private makeChain(): Chain {

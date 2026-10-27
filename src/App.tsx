@@ -70,12 +70,17 @@ export default function App() {
     if (settings.get().onboarded) void midi.connect()
   }, [])
 
-  // Browsers only allow audio after a user gesture: the first click anywhere starts it.
+  // Browsers only allow audio after a gesture. These are the events they accept as one (a touch counts when the
+  // finger lifts, not when it lands), and we keep listening: a phone can suspend audio again later.
+  const [needTap, setNeedTap] = useState(false)
   useEffect(() => {
-    const go = () => { void audio.start().then(() => { audio.setVolume(settings.get().volume); setSoundOn(true) }) }
-    window.addEventListener('pointerdown', go, { once: true })
-    window.addEventListener('keydown', go, { once: true })
-    return () => { window.removeEventListener('pointerdown', go); window.removeEventListener('keydown', go) }
+    const go = () => { if (!audio.running) void audio.start().then(() => audio.setVolume(settings.get().volume)) }
+    const events = ['pointerup', 'touchend', 'click', 'keydown'] as const
+    for (const e of events) window.addEventListener(e, go, true)
+    const poll = setInterval(() => { const on = audio.running; setSoundOn(on); if (on) setNeedTap(false) }, 400)
+    // Playing the MiniLab is not a gesture: if sound is off, say so instead of staying silent.
+    const off = midi.on((e) => { if ((e.type === 'on' || e.type === 'pad') && !audio.running) setNeedTap(true) })
+    return () => { for (const e of events) window.removeEventListener(e, go, true); clearInterval(poll); off() }
   }, [])
 
   const go = (p: Page) => { if (p !== page) transition(() => setPage(p)) }
@@ -127,6 +132,7 @@ export default function App() {
         <SoundPanel compact />
       </aside>
       <KnobReadout />
+      {!soundOn && <button className={`sound-gate${needTap ? ' show' : ''}`} onClick={() => void audio.start()}>🔇 Tap to turn on sound</button>}
     </div>
   )
 }

@@ -519,6 +519,17 @@ details summary:hover { color: var(--text); }
 .drawer.open { transform: none; }
 .drawer-backdrop { position: fixed; inset: 0; z-index: 39; background: color-mix(in srgb, var(--bg) 40%, transparent); animation: fade-in 160ms ease-out; }
 
+/* "Tap to turn on sound": always on phones (the sidebar hint is icon-only there), and anywhere once keys are
+   played while the sound is still off. */
+.sound-gate {
+  position: fixed; left: 50%; bottom: max(18px, env(safe-area-inset-bottom)); z-index: 50; transform: translateX(-50%);
+  display: none; align-items: center; gap: 8px; padding: 12px 20px; border-radius: 99px; border: 0; cursor: pointer;
+  font-weight: 650; font-size: 1rem; color: white; background: var(--grad-accent); box-shadow: var(--shadow-accent), var(--shadow-2);
+  animation: drop-in var(--dur-base) var(--ease-spring);
+}
+.sound-gate.show { display: flex; }
+@media (max-width: 900px), (max-height: 500px) { .sound-gate { display: flex; } }
+
 /* ───────────────────────── Motion ───────────────────────── */
 @keyframes fade-in { from { opacity: 0; } }
 @keyframes fade-up { from { opacity: 0; transform: translateY(8px); } }
