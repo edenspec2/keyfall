@@ -520,7 +520,9 @@ export function lightEngine() {
   let pick = 'auto'
   try { pick = localStorage.getItem(ENGINE_KEY) ?? 'auto' } catch { /* storage blocked: auto */ }
   if (pick !== 'auto') return pick === 'light'
-  return typeof navigator !== 'undefined' && /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)
+  if (typeof navigator !== 'undefined' && /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)) return true
+  // A touch screen counts too: in Chrome's "Desktop site" mode a phone reports a PC user agent.
+  return typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
 }
 
 export const audio = new AudioEngine()

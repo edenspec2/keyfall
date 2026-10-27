@@ -1,6 +1,6 @@
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { ARP_MODES, ARP_RATES, transposeShape } from '../audio/arp'
-import { audio, INSTRUMENTS, type InstrumentId } from '../audio/audioEngine'
+import { audio, INSTRUMENTS, lightEngine, type InstrumentId } from '../audio/audioEngine'
 import {
   allPresets, captureChord, ccFor, clearCC, currentParams, deleteUserPreset, getParam, learn, loadPreset, renameUserPreset,
   FADERS, moves, saveUserPreset, setCCMode, setParam, WIZARD, type CCMode,
@@ -234,12 +234,14 @@ export function SoundPanel({ compact }: { compact?: boolean }) {
   const filterType = useSyncExternalStore(sound.subscribe, () => getParam('filterType'))
   const k = (id: Target, big?: boolean) => <ParamKnob key={id} id={id} big={big} learnMode={learnMode} />
   const synth = inst !== 'piano'
+  const light = audio.started ? audio.light : lightEngine()
   return (
     <section className={`sp${compact ? ' sp-compact' : ''}${learnMode ? ' sp-learning' : ''}`} aria-label="Sound">
       <PresetBar inst={inst} />
       <div className="seg sp-seg sp-inst" aria-label="Instrument">
         {INSTRUMENTS.map((i) => <button key={i.id} className={inst === i.id ? 'active' : ''} onClick={() => settings.set({ instrument: i.id })}>{i.label}</button>)}
       </div>
+      {light && <p className="callout sub">Light engine (phones): only the filter, envelope and volume knobs change the sound. For reverb, delay, chorus and drive, pick Full under Settings → Sound engine.</p>}
       {/* Laid out like the MiniLab: knobs 1–4 (the macros), knobs 5–8, then the 4 faders. They work without MIDI learn. */}
       <div className="sp-hw-label">Knobs 1–4</div>
       <div className="sp-macros">{WIZARD.slice(0, 4).map((id) => k(id, true))}</div>
