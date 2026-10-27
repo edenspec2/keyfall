@@ -11,7 +11,7 @@ import type { Lesson, NoteEvent } from '../music/types'
 import { draft, library, settings, sound, useStore, type Composition, type Track } from '../store/store'
 
 const uid = () => Math.random().toString(36).slice(2, 10)
-const TRACK_COLORS = ['#5ec8ff', '#ffb35e', '#a98bff', '#5df2a0', '#ff6a8a']
+const TRACK_COLORS = ['#0ea5e9', '#f97316', '#8b5cf6', '#10b981', '#f43f5e'] // saturated enough for both themes
 const GRIDS = [{ v: 1, l: '1/4' }, { v: 0.5, l: '1/8' }, { v: 0.25, l: '1/16' }, { v: 1 / 3, l: '1/8 triplet' }]
 const ROW = 14, KEYW = 52
 
@@ -321,19 +321,16 @@ export function Create() {
             ))}
             <div style={{ position: 'absolute', top: 18, left: 0, right: 0 }}>
               {rows.map((p, i) => drumView ? (
-                <div key={p} style={{ position: 'absolute', top: i * ROW, left: 0, right: 0, height: ROW, background: i % 2 ? '#11141d' : '#141826', borderBottom: '1px solid #1d2234' }}>
-                  <div style={{ width: KEYW, height: ROW, background: '#1c2130', color: DRUMS[p - PAD_PITCH].color, fontSize: 9, lineHeight: `${ROW}px`, paddingLeft: 4, position: 'sticky', left: 0, zIndex: 1, cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden' }}>{DRUMS[p - PAD_PITCH].name}</div>
+                <div key={p} style={{ position: 'absolute', top: i * ROW, left: 0, right: 0, height: ROW, background: i % 2 ? 'var(--roll-row)' : 'var(--roll-row-alt)', borderBottom: '1px solid var(--roll-sep)' }}>
+                  <div style={{ width: KEYW, height: ROW, background: 'var(--panel-2)', color: DRUMS[p - PAD_PITCH].color, fontWeight: 650, fontSize: 9, lineHeight: `${ROW}px`, paddingLeft: 4, position: 'sticky', left: 0, zIndex: 1, cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden' }}>{DRUMS[p - PAD_PITCH].name}</div>
                 </div>
               ) : (
-                <div key={p} style={{ position: 'absolute', top: i * ROW, left: 0, right: 0, height: ROW, background: isBlack(p) ? '#0d1017' : keyPcs.includes(pc(p)) ? '#141a2a' : '#11141d', borderBottom: pc(p) === 0 ? '1px solid #2a3047' : '1px solid #151926' }}>
-                  <div style={{ width: KEYW, height: ROW, background: isBlack(p) ? '#1b1e29' : '#d9dce6', color: isBlack(p) ? '#888' : '#222', fontSize: 9, lineHeight: `${ROW}px`, paddingLeft: 4, position: 'sticky', left: 0, zIndex: 1, cursor: 'pointer' }}>{pc(p) === 0 || !isBlack(p) ? noteNameOct(p) : ''}</div>
+                <div key={p} style={{ position: 'absolute', top: i * ROW, left: 0, right: 0, height: ROW, background: isBlack(p) ? 'var(--roll-black-row)' : keyPcs.includes(pc(p)) ? 'var(--roll-key-row)' : 'var(--roll-row)', borderBottom: pc(p) === 0 ? '1px solid var(--roll-c)' : '1px solid var(--roll-sep)' }}>
+                  <div style={{ width: KEYW, height: ROW, background: isBlack(p) ? 'var(--roll-key-black)' : 'var(--roll-key-white)', color: isBlack(p) ? 'var(--roll-key-text-black)' : 'var(--roll-key-text)', borderRight: '1px solid var(--roll-sep)', fontSize: 9, lineHeight: `${ROW}px`, paddingLeft: 4, position: 'sticky', left: 0, zIndex: 1, cursor: 'pointer' }}>{pc(p) === 0 || !isBlack(p) ? noteNameOct(p) : ''}</div>
                 </div>
               ))}
-              {Array.from({ length: beats / grid }, (_, k) => {
-                const b = k * grid
-                const isBar = Math.abs(b / bpb - Math.round(b / bpb)) < 1e-6, isBeat = Math.abs(b - Math.round(b)) < 1e-6
-                return <div key={k} style={{ position: 'absolute', top: 0, height: rows.length * ROW, left: KEYW + b * pxBeat, width: 1, background: isBar ? '#323a55' : isBeat ? '#1f2537' : '#171b28', pointerEvents: 'none' }} />
-              })}
+              {/* One element draws every grid, beat and bar line as layered repeating gradients. */}
+              <div className="roll-grid" style={{ left: KEYW, width: beats * pxBeat, height: rows.length * ROW, '--bar': `${bpb * pxBeat}px`, '--beat': `${pxBeat}px`, '--step': `${grid * pxBeat}px` } as React.CSSProperties} />
               {comp.tracks.map((t, ti) => !inView(t) ? null : t.notes.map((n, i) => {
                 const mine = ti === active
                 return (

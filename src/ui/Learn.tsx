@@ -37,7 +37,7 @@ export function Learn({ open }: { open: (l: Lesson) => void }) {
       <div className="page-head">
         <div>
           <h1>Learn</h1>
-          <p className="sub">Six stages from your first notes to your first composition – all on 25 keys.</p>
+          <p className="sub">Seven stages from your first notes to your own songs, drum grooves and synth leads – all on 25 keys.</p>
         </div>
         <div className="row">
           <span className="pill star-total">★ {totalStars} / {CURRICULUM.length * 3}</span>

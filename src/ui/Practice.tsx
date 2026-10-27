@@ -8,7 +8,7 @@ import { handPosition } from '../music/fingering'
 import { noteNameOct } from '../music/theory'
 import type { Lesson, NoteEvent, PracticeMode } from '../music/types'
 import { DRUMS } from '../music/drums'
-import { COLORS, displayRange, Effects, type Scene } from '../render/pianoRenderer'
+import { displayRange, Effects, noteColor, type Scene } from '../render/pianoRenderer'
 import { logPractice, progress, recordAttempt, settings, useStore } from '../store/store'
 import { PianoCanvas } from './PianoCanvas'
 import { TheoryPanel } from './TheoryPanel'
@@ -63,14 +63,14 @@ export function Practice({ lesson, onExit, onNext }: { lesson: Lesson; onExit: (
   const pendingStart = useRef(false)
   // osu!-style live stats: updated from the frame loop through refs, never through React state.
   const fx = useMemo(() => new Effects(), [])
-  const stats = useRef({ combo: 0, max: 0, score: 0, shown: -1, judged: 0, hits: 0, wrong: 0, lastAcc: -1, last: 0 })
+  const stats = useRef({ combo: 0, max: 0, score: 0, shown: -1, judged: 0, hits: 0, wrong: 0, seen: 0, lastAcc: -1, last: 0, hud: '', chord: '', toast: '' })
   const statsBox = useRef<HTMLDivElement>(null)
   const comboEl = useRef<HTMLSpanElement>(null)
   const ghostEl = useRef<HTMLSpanElement>(null)
   const scoreEl = useRef<HTMLElement>(null)
   const accEl = useRef<HTMLSpanElement>(null)
   const resetStats = () => {
-    Object.assign(stats.current, { combo: 0, max: 0, score: 0, shown: -1, judged: 0, hits: 0, wrong: 0, lastAcc: -1 })
+    Object.assign(stats.current, { combo: 0, max: 0, score: 0, shown: -1, judged: 0, hits: 0, wrong: 0, seen: 0, lastAcc: -1 })
     fx.clear()
     if (comboEl.current) comboEl.current.textContent = ''
   }
@@ -97,13 +97,8 @@ export function Practice({ lesson, onExit, onNext }: { lesson: Lesson; onExit: (
   }, [lesson])
   useEffect(() => { session.opts.metronome = st.metronome; session.opts.calibration = st.calibrationMs / 1000 }, [session, st.metronome, st.calibrationMs])
 
-  // Scored notes → lesson notes, so the renderer can colour the falling note that was hit or missed.
+  // Lesson note → grade, so the renderer can colour the falling note that was hit or missed.
   const gradeMap = useRef(new Map<NoteEvent, Grade>())
-  const lookup = useMemo(() => {
-    const m = new Map<string, NoteEvent>()
-    for (const n of lesson.notes) m.set(`${n.pitch}@${n.start}@${n.hand}`, n)
-    return m
-  }, [lesson])
 
   useEffect(() => {
     setState('ready'); setResult(null); setRun(null)
@@ -180,7 +175,7 @@ export function Practice({ lesson, onExit, onNext }: { lesson: Lesson; onExit: (
     st.combo++
     st.max = Math.max(st.max, st.combo)
     st.score += POINTS[g] * (1 + Math.min(st.combo, 100) / 50)
-    fx.judge(n.pitch, g, now, n.drum !== undefined ? DRUMS[n.drum].color : COLORS[n.hand][0])
+    fx.judge(n.pitch, g, now, n.drum !== undefined ? DRUMS[n.drum].color : noteColor(n.hand))
     if (st.combo === 10 || st.combo === 25 || st.combo % 50 === 0) fx.milestone(st.combo, now)
     if (comboEl.current) {
       comboEl.current.textContent = `${st.combo}×`
@@ -195,14 +190,14 @@ export function Practice({ lesson, onExit, onNext }: { lesson: Lesson; onExit: (
     // New loop pass (or restart): forget the previous pass's hit/miss colours; combo and score carry on.
     if (lastScorer.current !== session.scorer) {
       gradeMap.current.clear(); lastScorer.current = session.scorer
-      st.judged = 0; st.hits = 0; st.wrong = 0
+      st.judged = 0; st.hits = 0; st.wrong = 0; st.seen = 0
     }
-    for (const n of session.scorer.notes as ScoredNote[]) {
-      if (!n.grade) continue
-      const orig = lookup.get(`${n.pitch}@${n.start}@${n.hand}`)
-      if (!orig) continue
-      if (!gradeMap.current.has(orig)) judged(n, now)
-      gradeMap.current.set(orig, n.grade)
+    // Only the notes graded since the last frame (the scorer keeps them in order), not a rescan of the piece.
+    const graded = session.scorer.graded
+    for (; st.seen < graded.length; st.seen++) {
+      const n = graded[st.seen]
+      gradeMap.current.set(n.src, n.grade!)
+      judged(n, now)
     }
     const wrong = session.scorer.wrong
     for (; st.wrong < wrong.length; st.wrong++) { fx.judge(wrong[st.wrong].played, 'wrong', now); breakCombo() }
@@ -218,32 +213,23 @@ export function Practice({ lesson, onExit, onNext }: { lesson: Lesson; onExit: (
       if (acc !== st.lastAcc && accEl.current) { accEl.current.textContent = `${(acc / 10).toFixed(1)}%`; st.lastAcc = acc }
     }
     st.last = now
-    // HUD text without React re-renders.
-    if (hud.current) {
-      const b = session.transport.beat
-      let text = ''
-      if (session.state === 'playing' && b < session.countInEnd) text = `Count-in  ${Math.ceil(session.countInEnd - b)}`
-      else if (session.state === 'waiting') text = 'Play the highlighted keys'
-      else if (session.state === 'paused') text = 'Paused – press Space'
-      else if (session.state === 'playing' && session.timed) {
-        const done = session.scorer.notes.filter((n) => n.grade)
-        const hits = done.filter((n) => n.grade !== 'missed').length
-        text = done.length ? `${hits}/${done.length} notes · bar ${Math.floor(b / lesson.timeSig[0]) + 1}` : `Bar ${Math.floor(Math.max(0, b) / lesson.timeSig[0]) + 1}`
-        if (session.opts.mode === 'loop') text += ` · pass ${session.passes.length + 1}`
-      } else if (session.state === 'playing') text = `Bar ${Math.floor(Math.max(0, b) / lesson.timeSig[0]) + 1}`
-      hud.current.textContent = text
-      hud.current.style.display = text ? '' : 'none'
-    }
-    if (chordEl.current) {
-      const c = lesson.chords?.filter((x) => x.beat <= Math.max(0, session.transport.beat) + 0.01).at(-1)
-      chordEl.current.textContent = c ? `Chord: ${c.name}` : ''
-      chordEl.current.style.display = c ? '' : 'none'
-    }
-    if (toast.current) {
-      const h = session.octaveHint
-      toast.current.style.display = h ? '' : 'none'
-      if (h) toast.current.textContent = `One octave ${h === 'up' ? 'too low – press Oct +' : 'too high – press Oct −'} (or move your hand ${h === 'up' ? 'right' : 'left'})`
-    }
+    // HUD text without React re-renders; the DOM is touched only when the text actually changes.
+    const b = session.transport.beat
+    let text = ''
+    if (session.state === 'playing' && b < session.countInEnd) text = `Count-in  ${Math.ceil(session.countInEnd - b)}`
+    else if (session.state === 'waiting') text = 'Play the highlighted keys'
+    else if (session.state === 'paused') text = 'Paused – press Space'
+    else if (session.state === 'playing' && session.timed) {
+      text = st.judged ? `${st.hits}/${st.judged} notes · bar ${Math.floor(b / lesson.timeSig[0]) + 1}` : `Bar ${Math.floor(Math.max(0, b) / lesson.timeSig[0]) + 1}`
+      if (session.opts.mode === 'loop') text += ` · pass ${session.passes.length + 1}`
+    } else if (session.state === 'playing') text = `Bar ${Math.floor(Math.max(0, b) / lesson.timeSig[0]) + 1}`
+    if (text !== st.hud && hud.current) { hud.current.textContent = text; hud.current.style.display = text ? '' : 'none'; st.hud = text }
+    let chord = ''
+    for (const c of lesson.chords ?? []) { if (c.beat > Math.max(0, b) + 0.01) break; chord = `Chord: ${c.name}` }
+    if (chord !== st.chord && chordEl.current) { chordEl.current.textContent = chord; chordEl.current.style.display = chord ? '' : 'none'; st.chord = chord }
+    const h = session.octaveHint
+    const hint = h ? `One octave ${h === 'up' ? 'too low – press Oct +' : 'too high – press Oct −'} (or move your hand ${h === 'up' ? 'right' : 'left'})` : ''
+    if (hint !== st.toast && toast.current) { toast.current.textContent = hint; toast.current.style.display = hint ? '' : 'none'; st.toast = hint }
   }
 
   const range = useMemo(() => {
@@ -281,7 +267,16 @@ export function Practice({ lesson, onExit, onNext }: { lesson: Lesson; onExit: (
     padHits,
     waiting: session.state === 'waiting',
     live: session.state === 'playing',
+    autoAlpha: mode === 'watch' ? 0.92 : undefined,
   })
+
+  // The View menu closes when you click anywhere else.
+  const menuRef = useRef<HTMLDetailsElement>(null)
+  useEffect(() => {
+    const close = (e: PointerEvent) => { const m = menuRef.current; if (m?.open && !m.contains(e.target as Node)) m.open = false }
+    document.addEventListener('pointerdown', close)
+    return () => document.removeEventListener('pointerdown', close)
+  }, [])
 
   const lp = prog.lessons[lesson.id]
   const advice = rangeAdvice(lesson.notes)
@@ -326,16 +321,23 @@ export function Practice({ lesson, onExit, onNext }: { lesson: Lesson; onExit: (
             onFocus={() => setHandsHover(true)} onBlur={() => setHandsHover(false)}
             onClick={() => setHandsPinned(!handsPinned)}>✋ Hand position</button>
         )}
-        <button className={`btn small ${st.metronome ? 'on' : ''}`} onClick={() => settings.set({ metronome: !st.metronome })} title="Metronome" aria-pressed={st.metronome}>Metronome</button>
-        <select value={st.labels} onChange={(e) => settings.set({ labels: e.target.value as Scene['labels'] })} aria-label="Note labels">
-          <option value="name">Labels: C D E</option>
-          <option value="octave">Labels: C4 D4</option>
-          <option value="none">No labels</option>
-        </select>
-        <label className="row" style={{ gap: 6 }} title="Scroll speed: how many beats are visible">
-          <span className="sub">Zoom</span>
-          <input type="range" min={3} max={14} value={17 - st.beatsVisible} onChange={(e) => settings.set({ beatsVisible: 17 - +e.target.value })} aria-label="Scroll speed" />
-        </label>
+        {/* Less frequent options live in a small menu, so the bar stays one clean row. */}
+        <details className="menu" ref={menuRef}>
+          <summary className={`btn small${st.metronome ? ' on' : ''}`} aria-label="View and metronome options">View ▾</summary>
+          <div className="menu-panel">
+            <label className="row" style={{ justifyContent: 'space-between' }}>Metronome <input type="checkbox" checked={st.metronome} onChange={() => settings.set({ metronome: !st.metronome })} /></label>
+            <label className="field">Note labels
+              <select value={st.labels} onChange={(e) => settings.set({ labels: e.target.value as Scene['labels'] })} aria-label="Note labels">
+                <option value="name">C D E</option>
+                <option value="octave">C4 D4</option>
+                <option value="none">None</option>
+              </select>
+            </label>
+            <label className="field" title="Scroll speed: how many beats are visible">Zoom
+              <input type="range" min={3} max={14} value={17 - st.beatsVisible} onChange={(e) => settings.set({ beatsVisible: 17 - +e.target.value })} aria-label="Scroll speed" />
+            </label>
+          </div>
+        </details>
         <button className="btn small" onClick={() => void start()} title="Restart">↺</button>
         <button className="btn primary small" onClick={togglePlay} style={{ minWidth: 86 }}>{running ? '❚❚ Pause' : state === 'paused' ? '▶ Resume' : '▶ Play'}</button>
         {lesson.kind === 'improvise' && running && <button className="btn small" onClick={finishImprov}>Finish</button>}

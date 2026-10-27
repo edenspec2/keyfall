@@ -16,6 +16,7 @@ import { ProgressPage } from './ui/ProgressPage'
 import { MidiStatusPill, Settings } from './ui/Settings'
 import { KnobReadout, SoundPanel } from './ui/SoundPanel'
 import { progress } from './store/store'
+import { setRenderTheme } from './render/pianoRenderer'
 
 type Page = 'learn' | 'practice' | 'explore' | 'create' | 'progress' | 'settings'
 
@@ -48,6 +49,19 @@ export default function App() {
     return () => window.removeEventListener('keydown', close)
   }, [soundOpen])
   const [soundOn, setSoundOn] = useState(audio.started)
+
+  // Theme: tokens in CSS switch on data-theme; the canvas gets the matching palette.
+  useEffect(() => {
+    const mq = matchMedia('(prefers-color-scheme: dark)')
+    const apply = () => {
+      const t = st.theme === 'system' ? (mq.matches ? 'dark' : 'light') : st.theme
+      document.documentElement.dataset.theme = t
+      setRenderTheme(t)
+    }
+    apply()
+    mq.addEventListener('change', apply)
+    return () => mq.removeEventListener('change', apply)
+  }, [st.theme])
 
   useEffect(() => {
     document.documentElement.classList.toggle('vt', !!document.startViewTransition)

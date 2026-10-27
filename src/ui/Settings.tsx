@@ -159,6 +159,15 @@ export function Settings({ rerunSetup }: { rerunSetup: () => void }) {
         </div>
       </section>
       <section className="card col">
+        <h2>Appearance</h2>
+        <div className="seg" role="radiogroup" aria-label="Theme">
+          {(['light', 'dark', 'system'] as const).map((t) => (
+            <button key={t} role="radio" aria-checked={st.theme === t} className={st.theme === t ? 'active' : ''} onClick={() => settings.set({ theme: t })}>{t === 'light' ? 'Light' : t === 'dark' ? 'Dark' : 'Auto'}</button>
+          ))}
+        </div>
+        <p className="sub">Auto follows your system setting.</p>
+      </section>
+      <section className="card col">
         <h2>Sound</h2>
         <div className="row">
           <label className="field">Volume <input type="range" min={0} max={1} step={0.01} value={st.volume} onChange={(e) => settings.set({ volume: +e.target.value })} /></label>

@@ -66,7 +66,7 @@ export function TheoryPanel({ musicalKey }: { musicalKey?: string }) {
         <div>
           <p className="sub" style={{ marginBottom: 6 }}>Notes of {musicalKey}</p>
           <div className="row" style={{ gap: 4 }}>
-            {(keyPcs ?? []).map((p, i) => <span key={p} className="pill" style={{ color: shown.some((h) => pc(h) === p) ? 'white' : undefined, background: shown.some((h) => pc(h) === p) ? '#33407a' : undefined }}>{i + 1}·{noteName(p)}</span>)}
+            {(keyPcs ?? []).map((p, i) => <span key={p} className={`pill${shown.some((h) => pc(h) === p) ? ' key-pill' : ''}`}>{i + 1}·{noteName(p)}</span>)}
           </div>
         </div>
       )}

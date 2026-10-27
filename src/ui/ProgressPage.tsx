@@ -39,7 +39,7 @@ export function ProgressPage() {
       <div className="card col">
         <h3>Last 4 weeks</h3>
         <div className="row" style={{ gap: 4 }}>
-          {strip.map((d) => <div key={d.k} title={`${d.k}: ${Math.round(d.m)} min`} style={{ width: 22, height: 22, borderRadius: 5, background: d.m ? `rgba(124,140,255,${Math.min(1, 0.25 + d.m / 30)})` : 'var(--bg-2)', border: '1px solid var(--line)' }} />)}
+          {strip.map((d) => <div key={d.k} className="heat" title={`${d.k}: ${Math.round(d.m)} min`} style={d.m ? { background: `rgba(var(--heat), ${Math.min(1, 0.25 + d.m / 30)})` } : undefined} />)}
         </div>
       </div>
 

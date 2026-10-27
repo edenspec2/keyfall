@@ -108,9 +108,9 @@ export function Knob({ label, norm, text, value, min, max, onNorm, onReset, step
         <svg width="100%" viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
           <defs>
             <radialGradient id={`${gid}b`} cx="40%" cy="32%" r="75%">
-              <stop offset="0" stopColor="#3a4157" />
-              <stop offset="0.55" stopColor="#1f2433" />
-              <stop offset="1" stopColor="#11141c" />
+              <stop offset="0" style={{ stopColor: 'var(--knob-1)' }} />
+              <stop offset="0.55" style={{ stopColor: 'var(--knob-2)' }} />
+              <stop offset="1" style={{ stopColor: 'var(--knob-3)' }} />
             </radialGradient>
           </defs>
           <g transform={`rotate(${90 + (360 - SWEEP) / 2} ${size / 2} ${size / 2})`}>

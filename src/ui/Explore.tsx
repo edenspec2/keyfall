@@ -69,7 +69,7 @@ export function Explore({ onPractice }: { onPractice: (l: Lesson) => void }) {
     const t0 = audio.now() + DEMO_BEATS * DEMO_SPB
     for (const n of notes) audio.schedule(n.pitch, t0 + n.start * DEMO_SPB, n.dur * DEMO_SPB * 0.95, 78)
     demo.current = { notes, t0, end: Math.max(...notes.map((n) => n.start + n.dur)) }
-    setLit(pitches)
+    setLit(arpeggio ? [] : pitches) // a block chord shows its keys; runs are already shown by the falling notes
     setTimeout(() => setLit([]), (DEMO_BEATS + demo.current.end) * DEMO_SPB * 1000)
   }
   const chord = voicing(root, CHORD_TYPES[chordType].iv, inv)
@@ -81,7 +81,7 @@ export function Explore({ onPractice }: { onPractice: (l: Lesson) => void }) {
     if (d && beat > d.end + 1) demo.current = null
     return {
       beat, notes: d?.notes ?? [], userHands: 'none', range, held: midi.held, labels: st.labels, beatsVisible: DEMO_BEATS, beatsPerBar: 4, trails,
-      highlightPcs: showScale ? scaleSet : undefined, pending: lit, pads: true, padHits,
+      highlightPcs: showScale ? scaleSet : undefined, pending: lit, pads: true, padHits, autoAlpha: 0.95,
     }
   }
   const key = `${SHARP_NAMES[root]} ${/minor|blues|dorian/.test(scale) ? 'minor' : 'major'}`

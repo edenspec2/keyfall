@@ -60,11 +60,14 @@ export function Results({ fb, run, onRetry, onNext, onMode, mode, history, lesso
   lessonPass: boolean
 }) {
   const recent = history.slice(-10)
+  // Focus "Try again" for the keyboard without scrolling the card away from the rank at its top.
+  const retry = useRef<HTMLButtonElement>(null)
+  useEffect(() => { retry.current?.focus({ preventScroll: true }) }, [])
   const s = run?.summary
   const rank = s ? rankOf(s.accuracy, s.timing, s.extras) : null
   const counts: [string, number, string][] = !s ? [] : s.timing === null
     ? [['Correct', s.hits, 'var(--ok)'], ['Missed', s.missed, 'var(--bad)'], ['Wrong keys', s.extras, 'var(--warn)']]
-    : [['Perfect', s.perfect, '#7cf0ff'], ['Good', s.good, 'var(--ok)'], ['Early', s.early, 'var(--warn)'], ['Late', s.late, 'var(--left)'], ['Miss', s.missed, 'var(--bad)']]
+    : [['Perfect', s.perfect, 'var(--accent-2)'], ['Good', s.good, 'var(--ok)'], ['Early', s.early, 'var(--warn)'], ['Late', s.late, 'var(--left)'], ['Miss', s.missed, 'var(--bad)']]
   return (
     <div className="overlay" role="dialog" aria-label="Results">
       <div className="card col results">
@@ -117,7 +120,7 @@ export function Results({ fb, run, onRetry, onNext, onMode, mode, history, lesso
           </div>
         )}
         <div className="row">
-          <button className="btn primary" onClick={onRetry} autoFocus>↺ Try again</button>
+          <button className="btn primary" onClick={onRetry} ref={retry}>↺ Try again</button>
           {lessonPass && onMode && mode === 'wait' && fb.stars >= 1 && <button className="btn" onClick={() => onMode('rhythm')}>Rhythm mode</button>}
           {lessonPass && onMode && mode === 'rhythm' && fb.stars === 0 && <button className="btn" onClick={() => onMode('wait')}>Back to Wait mode</button>}
           {lessonPass && onMode && mode === 'rhythm' && fb.stars === 1 && <button className="btn" onClick={() => onMode('loop')}>Loop the hard bars</button>}

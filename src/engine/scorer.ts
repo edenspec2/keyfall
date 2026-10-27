@@ -12,7 +12,8 @@ export interface ScoredNote extends NoteEvent {
   offsetMs?: number // + = late
   pressBeat?: number
   heldBeats?: number
-  maxMs: number // matching window; shrinks when the same pitch repeats quickly so presses aren't stolen
+  gap: number // beats to the nearest same-pitch note; the window shrinks to half of it so presses aren't stolen
+  src: NoteEvent // the lesson note this was copied from (lets the renderer colour it without lookups)
 }
 
 export interface Group { start: number; notes: ScoredNote[]; pressed: Set<number>; done: boolean }
@@ -56,6 +57,9 @@ export class Scorer {
   wrong: WrongNote[] = []
   octaveErrors = 0
   current = 0 // Wait mode: index of the chord being waited for
+  /** Every note in the order it was graded, so a frame loop can pick up new results without rescanning. */
+  graded: ScoredNote[] = []
+  private cursor = 0 // timed: notes before this index are all graded
   readonly timed: boolean
   readonly together: boolean
   readonly w: { perfect: number; good: number; max: number }
@@ -68,8 +72,16 @@ export class Scorer {
     const k = o.windowScale ?? 1
     this.w = { perfect: WINDOW_MS.perfect * k, good: WINDOW_MS.good * k, max: WINDOW_MS.max * k }
     // Unison duplicates (same pitch, same onset) are one key press on a keyboard: keep one.
-    const unique = notes.filter((n, i) => notes.findIndex((m) => m.pitch === n.pitch && Math.abs(m.start - n.start) < CHORD_EPS) === i)
-    this.notes = unique.sort((a, b) => a.start - b.start || a.pitch - b.pitch).map((n, idx) => ({ ...n, idx, group: 0, maxMs: this.w.max }))
+    const sorted = [...notes].sort((a, b) => a.start - b.start || a.pitch - b.pitch)
+    const unique = sorted.filter((n, i) => !sorted.slice(Math.max(0, i - 16), i).some((m) => m.pitch === n.pitch && n.start - m.start < CHORD_EPS))
+    this.notes = unique.map((n, idx) => ({ ...n, idx, group: 0, gap: Infinity, src: n }))
+    // Gap to the neighbouring same-pitch note, computed once (it used to be rescanned on every press and frame).
+    const lastOf = new Map<number, ScoredNote>()
+    for (const n of this.notes) {
+      const prev = lastOf.get(n.pitch)
+      if (prev) { const g = n.start - prev.start; prev.gap = Math.min(prev.gap, g); n.gap = g }
+      lastOf.set(n.pitch, n)
+    }
     for (const n of this.notes) {
       const g = this.groups[this.groups.length - 1]
       if (g && n.start - g.start < CHORD_EPS) g.notes.push(n)
@@ -79,11 +91,7 @@ export class Scorer {
   }
 
   /** Window in ms for a note at the current tempo: at most half the gap to the neighbouring same-pitch note. */
-  private windowMs(n: ScoredNote, spb: number) {
-    let gap = Infinity
-    for (const m of this.notes) if (m !== n && m.pitch === n.pitch) gap = Math.min(gap, Math.abs(m.start - n.start) * spb * 1000)
-    return Math.min(this.w.max, gap / 2)
-  }
+  private windowMs(n: ScoredNote, spb: number) { return Math.min(this.w.max, n.gap * spb * 500) }
 
   get finished() { return this.timed ? this.notes.every((n) => n.grade) : this.current >= this.groups.length }
   get currentGroup(): Group | undefined { return this.groups[this.current] }
@@ -101,6 +109,7 @@ export class Scorer {
       this.recordWrong(pitch, beat, g.notes.filter((n) => !n.grade).map((n) => n.pitch))
       return { kind: 'extra' }
     }
+    if (!note.grade) this.graded.push(note)
     note.grade = 'hit'
     note.pressBeat = beat
     note.heldBeats = undefined
@@ -138,6 +147,7 @@ export class Scorer {
     best.offsetMs = off
     best.pressBeat = beat
     best.grade = Math.abs(off) <= this.w.perfect ? 'perfect' : Math.abs(off) <= this.w.good ? 'good' : off < 0 ? 'early' : 'late'
+    this.graded.push(best)
     return { kind: 'hit', grade: best.grade, note: best }
   }
 
@@ -150,17 +160,22 @@ export class Scorer {
   release(pitch: number, beat: number) {
     this.down.delete(pitch)
     // The most recent pressed-but-not-released note of this pitch.
-    const n = [...this.notes].reverse().find((x) => x.pitch === pitch && x.pressBeat !== undefined && x.heldBeats === undefined)
-    if (n) n.heldBeats = beat - n.pressBeat!
+    for (let i = this.notes.length - 1; i >= 0; i--) {
+      const n = this.notes[i]
+      if (n.pitch === pitch && n.pressBeat !== undefined && n.heldBeats === undefined) { n.heldBeats = beat - n.pressBeat; return }
+    }
   }
 
   /** Timed modes: mark notes whose window has passed as missed. Returns newly missed notes. */
   advance(beat: number, spb: number): ScoredNote[] {
     if (!this.timed) return []
     const out: ScoredNote[] = []
-    for (const n of this.notes) {
-      if (!n.grade && (beat - n.start) * spb * 1000 > this.windowMs(n, spb)) { n.grade = 'missed'; out.push(n) }
+    // Only notes that have started can be missed; everything before the cursor is already graded.
+    for (let i = this.cursor; i < this.notes.length && this.notes[i].start < beat; i++) {
+      const n = this.notes[i]
+      if (!n.grade && (beat - n.start) * spb * 1000 > this.windowMs(n, spb)) { n.grade = 'missed'; out.push(n); this.graded.push(n) }
     }
+    while (this.cursor < this.notes.length && this.notes[this.cursor].grade) this.cursor++
     return out
   }
 
