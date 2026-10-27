@@ -7,6 +7,7 @@ import {
 } from '../audio/controls'
 import { defaults, FILTER_TYPES, fromNorm, resolve, spec, toNorm, type Target } from '../audio/sound'
 import { midi } from '../midi/midiInput'
+import { RHYTHMS, SA_NAMES, type Drone, type Rhythm } from '../audio/kirtan'
 import { identifyChord } from '../music/theory'
 import { ccMap, settings, sound, userPresets, useStore, type SoundState } from '../store/store'
 import { Knob } from './Knob'
@@ -197,6 +198,35 @@ export function KnobReadout() {
   )
 }
 
+/** Kirtan accompaniment under free play: drone on Sa, a dholak/kartal theka, and which kit the pads play. */
+function KirtanSection() {
+  const st = useStore(settings)
+  const k = st.kirtan
+  const set = (p: Partial<typeof k>) => settings.set({ kirtan: { ...k, ...p } })
+  const bpm = useSyncExternalStore(sound.subscribe, () => sound.get().bpm)
+  return (
+    <Section title="Kirtan: drone, rhythm & pads" open={k.drone !== 'off' || k.rhythm !== 'off'}>
+      <p className="sp-hint">Play along on harmonium or bansuri. Lessons bring their own rhythm, so the loop pauses there; the drone keeps going.</p>
+      <div className="seg sp-seg" aria-label="Drone">
+        {(['off', 'tanpura', 'shruti'] as Drone[]).map((d) => <button key={d} aria-pressed={k.drone === d} className={k.drone === d ? 'active' : ''} onClick={() => set({ drone: d })}>{d === 'off' ? 'No drone' : d === 'tanpura' ? 'Tanpura' : 'Shruti box'}</button>)}
+      </div>
+      <div className="sp-row">
+        <label className="sp-bpm">Sa <select className="sp-select" value={k.sa} onChange={(e) => set({ sa: +e.target.value })}>{SA_NAMES.map((n, i) => <option key={n} value={i}>{n}</option>)}</select></label>
+        <label className="sp-bpm">BPM <input type="number" min={40} max={240} value={bpm} onChange={(e) => { const v = +e.target.value; if (v >= 40 && v <= 240) setSound({ bpm: v }) }} /></label>
+      </div>
+      <div className="seg sp-seg" aria-label="Rhythm">
+        {(['off', 'kaharwa', 'dadra'] as Rhythm[]).map((r) => <button key={r} aria-pressed={k.rhythm === r} className={k.rhythm === r ? 'active' : ''} onClick={() => set({ rhythm: r })}>{r === 'off' ? 'No rhythm' : RHYTHMS[r].label}</button>)}
+      </div>
+      <div className="sp-row">
+        <Knob label="Level" value={k.level} min={0} max={1} norm={k.level} text={`${Math.round(k.level * 100)}%`} onNorm={(n) => set({ level: n })} onReset={() => set({ level: 0.7 })} />
+        <div className="seg" aria-label="Pads play">
+          {(['standard', 'kirtan'] as const).map((id) => <button key={id} aria-pressed={st.padKit === id} className={st.padKit === id ? 'active' : ''} onClick={() => settings.set({ padKit: id })}>{id === 'standard' ? 'Pads: drum kit' : 'Pads: dholak & kartals'}</button>)}
+        </div>
+      </div>
+    </Section>
+  )
+}
+
 /** Analog Lab-style sound controls: presets, instrument, 4 macros, detailed sections, arp/chord, MIDI learn. */
 export function SoundPanel({ compact }: { compact?: boolean }) {
   const inst = useInst()
@@ -234,6 +264,7 @@ export function SoundPanel({ compact }: { compact?: boolean }) {
       <Section title="EQ & width"><div className="sp-grid">{k('eqLow')}{k('eqMid')}{k('eqHigh')}{k('width')}</div></Section>
       {synth && <Section title="Synth"><div className="sp-grid">{inst === 'synth' && k('glide')}{k('vibratoRate')}</div></Section>}
       <Section title="Mix" open={!compact}><div className="sp-grid">{k('master')}{k('keysVol')}{k('drumsVol')}</div></Section>
+      <KirtanSection />
       <PerformSection />
       <LearnSection learnMode={learnMode} setLearnMode={setLearnMode} />
       {!audio.started && <p className="sp-hint">Sound starts with your first key or click; your settings are applied then.</p>}

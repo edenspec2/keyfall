@@ -7,7 +7,8 @@ import { midi } from '../midi/midiInput'
 import { handPosition } from '../music/fingering'
 import { noteNameOct } from '../music/theory'
 import type { Lesson, NoteEvent, PracticeMode } from '../music/types'
-import { DRUMS } from '../music/drums'
+import { currentDrums, kit } from '../music/drums'
+import { kirtan } from '../audio/kirtan'
 import { displayRange, Effects, noteColor, type Scene } from '../render/pianoRenderer'
 import { logPractice, progress, recordAttempt, settings, useStore } from '../store/store'
 import { PianoCanvas } from './PianoCanvas'
@@ -85,15 +86,23 @@ export function Practice({ lesson, onExit, onNext }: { lesson: Lesson; onExit: (
   const hasDrums = lesson.notes.some((n) => n.drum !== undefined)
   const hasKeys = lesson.notes.some((n) => n.drum === undefined)
 
-  useEffect(() => { audio.performFx = false; return () => { audio.performFx = true } }, [])
+  // A lesson brings its own drums: the free-play kirtan rhythm loop pauses meanwhile (its drone keeps playing).
+  useEffect(() => { audio.performFx = false; kirtan.lessonOpen = true; return () => { audio.performFx = true; kirtan.lessonOpen = false } }, [])
 
-  // Some lessons choose their sound (bends need a synth); the backing then uses the electric piano so it doesn't bend along.
+  // Some lessons choose their sound (bends need a synth); a synth lesson's backing uses the electric piano so it doesn't
+  // bend along, while a harmonium or bansuri lesson keeps its backing on the same instrument.
   useEffect(() => {
     if (!lesson.instrument) return
     const prev = audio.instrument
     audio.instrument = lesson.instrument
-    audio.backing = 'epiano'
+    audio.backing = lesson.instrument === 'synth' ? 'epiano' : null
     return () => { audio.instrument = prev; audio.backing = null; audio.setBend(0); audio.setMod(0) }
+  }, [lesson])
+  useEffect(() => {
+    if (!lesson.kit) return
+    const prev = kit.id
+    kit.id = lesson.kit
+    return () => { kit.id = prev }
   }, [lesson])
   useEffect(() => { session.opts.metronome = st.metronome; session.opts.calibration = st.calibrationMs / 1000 }, [session, st.metronome, st.calibrationMs])
 
@@ -175,7 +184,7 @@ export function Practice({ lesson, onExit, onNext }: { lesson: Lesson; onExit: (
     st.combo++
     st.max = Math.max(st.max, st.combo)
     st.score += POINTS[g] * (1 + Math.min(st.combo, 100) / 50)
-    fx.judge(n.pitch, g, now, n.drum !== undefined ? DRUMS[n.drum].color : noteColor(n.hand))
+    fx.judge(n.pitch, g, now, n.drum !== undefined ? currentDrums()[n.drum].color : noteColor(n.hand))
     if (st.combo === 10 || st.combo === 25 || st.combo % 50 === 0) fx.milestone(st.combo, now)
     if (comboEl.current) {
       comboEl.current.textContent = `${st.combo}×`

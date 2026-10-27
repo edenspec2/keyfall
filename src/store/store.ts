@@ -1,5 +1,7 @@
 import { useSyncExternalStore } from 'react'
 import type { InstrumentId } from '../audio/audioEngine'
+import type { KirtanSettings } from '../audio/kirtan'
+import type { Kit } from '../music/drums'
 import type { ArpSettings, ChordSettings } from '../audio/arp'
 import type { CCMode } from '../audio/controls'
 import type { Params, Preset, Target } from '../audio/sound'
@@ -56,6 +58,8 @@ export interface Settings {
   computerKeys: boolean // play with the computer keyboard (A S D F …)
   theme: 'light' | 'dark' | 'system'
   audioBuffer: 'interactive' | 'balanced' // OS audio buffer: 'balanced' trades a few ms of latency for fewer crackles
+  padKit: Kit // what the pads play: the drum kit or the kirtan kit (dholak, kartals …)
+  kirtan: KirtanSettings // drone and rhythm loop under free play
 }
 
 export const settings = persisted<Settings>('settings', {
@@ -75,6 +79,8 @@ export const settings = persisted<Settings>('settings', {
   computerKeys: true,
   theme: 'light',
   audioBuffer: 'interactive',
+  padKit: 'standard',
+  kirtan: { drone: 'off', sa: 0, rhythm: 'off', level: 0.7 },
 })
 
 export interface LessonProgress { stars: number; bestAccuracy: number; bestTiming: number | null; attempts: Attempt[] }

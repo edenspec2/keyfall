@@ -88,6 +88,32 @@ function groove(rows: Record<string, string>, hands: Record<string, Hand> = {}):
   return out.sort((a, b) => a.start - b.start || a.pitch - b.pitch)
 }
 
+// Kirtan theka on the kirtan kit, one character per eighth note for ONE bar, repeated: G Ge, N Na, T Tin, A Ka (slap),
+// J kartals, M manjira. The app plays it; the player chants the melody on top.
+const KIRTAN_ROW: Record<string, number> = { G: 0, N: 1, T: 2, A: 3, J: 4, M: 5 }
+function theka(rows: Record<string, string>, bars: number): NoteEvent[] {
+  const out: NoteEvent[] = []
+  for (const [name, pattern] of Object.entries(rows)) {
+    const drum = KIRTAN_ROW[name]
+    if (drum === undefined || pattern.length !== 8) throw new Error(`curriculum: bad theka row ${name}`)
+    for (let b = 0; b < bars; b++) [...pattern].forEach((c, i) => {
+      if (c !== '.') out.push({ pitch: PAD_PITCH + drum, drum, start: b * 4 + i / 2, dur: 0.25, vel: i === 0 ? 100 : 78, hand: 'L' })
+    })
+  }
+  return out.sort((a, b) => a.start - b.start || a.pitch - b.pitch)
+}
+// Kaharwa: Dha Ge Na Ti | Na Ka Dhi Na, kartals on every beat, manjira on sam.
+const KAHARWA = { G: 'xx....x.', N: 'x.x.x.xx', T: '...x....', A: '.....x..', J: 'x.x.x.x.', M: 'x.......' }
+/** The chant's words, one syllable per melody note, in order. */
+function sing(notes: NoteEvent[], words: string): NoteEvent[] {
+  const w = words.trim().split(/\s+/)
+  if (w.length !== notes.length) throw new Error(`curriculum: ${w.length} syllables for ${notes.length} notes`)
+  return notes.map((n, i) => ({ ...n, text: w[i] }))
+}
+/** Harmonium left hand: Sa and Pa held under the whole chant, one bar at a time. */
+const saPa = (bars: number) => line('L', 'C3+G3:4 | '.repeat(bars), { vel: 48 })
+const KIRTAN_INTRO_TAIL = 'The app plays the harmonium drone (Sa and Pa) and a dholak & kartal rhythm; you play the melody with your right hand. For a fuller sound, open Sound → Kirtan and switch on the tanpura with Sa = C. These are simple traditional-style tunes; if you sing it differently, play your version into Create and it can become a lesson too.'
+
 // Boogie-woogie left hand (5–6–♭7–6 against the root), kept at or below B♭3.
 const BOOGIE: Record<string, string> = {
   C: 'C3+G3:1 C3+A3:1 C3+Bb3:1 C3+A3:1 |',
@@ -96,6 +122,7 @@ const BOOGIE: Record<string, string> = {
 }
 
 const C_MAJOR = [0, 2, 4, 5, 7, 9, 11]
+const C_PENTA_KIRTAN = [0, 2, 4, 7, 9] // Sa Re Ga Pa Dha
 const A_MINOR = [9, 11, 0, 2, 4, 5, 7]
 const C_PENTA = [0, 2, 4, 7, 9]
 const BLACK_PENTA = [1, 3, 6, 8, 10]
@@ -1051,6 +1078,119 @@ export const CURRICULUM: Lesson[] = [
     pass: { minAccuracy: 0.8 },
     unlockAfter: 'pads-first-beat',
   },
+  // ============================ Stage 8 — Kirtan ============================
+  {
+    id: 'kirtan-shree-ram',
+    stage: 8,
+    kind: 'play',
+    title: 'Shree Ram Jay Ram',
+    goal: 'Play a seven-syllable chant on the harmonium, ending each pair of lines back home on Sa.',
+    intro: [
+      'Shree Ram Jay Ram Jay Jay Ram is one of the simplest and best-loved chants: seven syllables in praise of Rama, sung again and again, often as call and response.',
+      'The tune uses only five notes – Sa Re Ga Pa Dha, here C D E G A – the same pentatonic you know from improvising, so nothing ever clashes with the drone. Lines 1 and 3 climb and stay open; lines 2 and 4 come down and rest on Sa.',
+      KIRTAN_INTRO_TAIL,
+    ],
+    tips: ['Sing the words as you play – the syllables are written next to each note.', 'Hold the last "Ram" of each line for its full two beats, like a long breath on the flute.'],
+    bpm: 80,
+    timeSig: [4, 4],
+    notes: [
+      ...sing(line('R', `E4:1 G4:1 A4:1 G4:1 | A4:1 C5:1 A4:2 | G4:1 A4:1 G4:1 E4:1 | D4:1 E4:1 D4:2 |
+                         E4:1 G4:1 A4:1 C5:1 | C5:1 A4:1 G4:2 | A4:1 G4:1 E4:1 D4:1 | D4:1 E4:1 C4:2 |`, { vel: 82 }),
+        'Shree Ram Jay Ram Jay Jay Ram Shree Ram Jay Ram Jay Jay Ram Shree Ram Jay Ram Jay Jay Ram Shree Ram Jay Ram Jay Jay Ram'),
+      ...saPa(8),
+      ...theka(KAHARWA, 8),
+    ],
+    hands: 'R',
+    key: 'C major',
+    scale: C_PENTA_KIRTAN,
+    instrument: 'harmonium',
+    kit: 'kirtan',
+    pass: { minAccuracy: 0.85, minTiming: 0.7 },
+  },
+  {
+    id: 'kirtan-hare-krishna',
+    stage: 8,
+    kind: 'play',
+    title: 'Hare Krishna mantra',
+    goal: 'Chant the sixteen-word maha-mantra with a quick "Ha-re" and a long final syllable in every bar.',
+    intro: [
+      'The Hare Krishna maha-mantra has sixteen words in four lines: Hare Krishna Hare Krishna, Krishna Krishna Hare Hare, Hare Rama Hare Rama, Rama Rama Hare Hare.',
+      'Every bar has the same rhythm: two quick syllables, one on the beat, and one held for two beats – "Ha-re Krish-naaa". Once your hand knows that shape, the tune almost plays itself.',
+      KIRTAN_INTRO_TAIL,
+    ],
+    tips: ['Count "1 & 2 3-4": Ha-re on 1 &, Krish on 2, na held on 3-4.', 'Lines 2 and 4 come down step by step – let them land softly on Sa at the end.'],
+    bpm: 76,
+    timeSig: [4, 4],
+    notes: [
+      ...sing(line('R', `E4:.5 G4:.5 A4:1 G4:2 | E4:.5 G4:.5 A4:1 C5:2 | C5:.5 A4:.5 G4:1 A4:2 | G4:.5 E4:.5 D4:1 E4:2 |
+                         E4:.5 G4:.5 A4:1 G4:2 | E4:.5 G4:.5 A4:1 C5:2 | C5:.5 A4:.5 G4:1 E4:2 | D4:.5 E4:.5 D4:1 C4:2 |`, { vel: 82 }),
+        'Ha re Krish na Ha re Krish na Krish na Krish na Ha re Ha re Ha re Ra ma Ha re Ra ma Ra ma Ra ma Ha re Ha re'),
+      ...saPa(8),
+      ...theka(KAHARWA, 8),
+    ],
+    hands: 'R',
+    key: 'C major',
+    scale: C_PENTA_KIRTAN,
+    instrument: 'harmonium',
+    kit: 'kirtan',
+    pass: { minAccuracy: 0.85, minTiming: 0.7 },
+  },
+  {
+    id: 'kirtan-om-namah-shivaya',
+    stage: 8,
+    kind: 'play',
+    title: 'Om Namah Shivaya',
+    goal: 'Play a slow, meditative chant with a long "Om" at the start of every line.',
+    intro: [
+      'Om Namah Shivaya – "I bow to Shiva" – is a six-syllable mantra. It is usually sung slowly and calmly, so this lesson is the slowest of the kirtan pieces.',
+      'Each line opens with a long Om (two beats). Let it ring: on the harmonium the note keeps sounding as long as you hold the key, just like a held breath on the flute.',
+      KIRTAN_INTRO_TAIL,
+    ],
+    tips: ['Hold every Om for its full two beats before moving on.', 'The last line walks down E – D – D – C: slow down inside and let it settle on Sa.'],
+    bpm: 66,
+    timeSig: [4, 4],
+    notes: [
+      ...sing(line('R', `G4:2 A4:1 G4:1 | E4:1 G4:1 G4:2 | G4:2 A4:1 C5:1 | A4:1 G4:1 A4:2 |
+                         C5:2 C5:1 A4:1 | G4:1 A4:1 G4:2 | E4:2 G4:1 E4:1 | D4:1 D4:1 C4:2 |`, { vel: 78 }),
+        'Om Na mah Shi vā ya Om Na mah Shi vā ya Om Na mah Shi vā ya Om Na mah Shi vā ya'),
+      ...saPa(8),
+      ...theka(KAHARWA, 8),
+    ],
+    hands: 'R',
+    key: 'C major',
+    scale: C_PENTA_KIRTAN,
+    instrument: 'harmonium',
+    kit: 'kirtan',
+    pass: { minAccuracy: 0.85, minTiming: 0.7 },
+  },
+  {
+    id: 'kirtan-govinda',
+    stage: 8,
+    kind: 'play',
+    title: 'Govinda Jaya Jaya',
+    goal: 'Play a lively four-line chant where each line ends on a long held syllable.',
+    intro: [
+      'Govinda Jaya Jaya, Gopala Jaya Jaya, Radha Ramana Hari, Govinda Jaya Jaya – four lines of seven syllables, celebrating Krishna as Govinda and Gopala.',
+      'Each line has the same shape: two quick syllables, three steady ones, then one short and one long note. It moves faster than the other chants – kirtan often speeds up as everyone joins in.',
+      KIRTAN_INTRO_TAIL,
+    ],
+    tips: ['Start slower than the written tempo in Rhythm mode, then raise it as the shape gets easy.', 'Every line ends on a three-beat note – use it to look ahead to the next line.'],
+    bpm: 84,
+    timeSig: [4, 4],
+    notes: [
+      ...sing(line('R', `G4:.5 A4:.5 C5:1 A4:1 G4:1 | E4:1 G4:3 | G4:.5 A4:.5 C5:1 C5:1 A4:1 | G4:1 A4:3 |
+                         C5:.5 C5:.5 A4:1 G4:1 A4:1 | G4:1 E4:3 | E4:.5 G4:.5 A4:1 G4:1 E4:1 | D4:1 C4:3 |`, { vel: 84 }),
+        'Go vin da Ja ya Ja ya Go pā la Ja ya Ja ya Rā dhā Ra ma na Ha ri Go vin da Ja ya Ja ya'),
+      ...saPa(8),
+      ...theka(KAHARWA, 8),
+    ],
+    hands: 'R',
+    key: 'C major',
+    scale: C_PENTA_KIRTAN,
+    instrument: 'harmonium',
+    kit: 'kirtan',
+    pass: { minAccuracy: 0.85, minTiming: 0.7 },
+  },
 ]
 
 export const STAGES: { stage: number; title: string; blurb: string }[] = [
@@ -1061,4 +1201,5 @@ export const STAGES: { stage: number; title: string; blurb: string }[] = [
   { stage: 5, title: 'Playing real music', blurb: 'Beethoven, Mozart\'s favourite folk tune, a round, Greensleeves and a Baroque minuet, with phrasing and balance.' },
   { stage: 6, title: 'Improvisation & composition', blurb: 'Pentatonic, minor and blues improvising, question-and-answer phrases, and your first 8-bar composition.' },
   { stage: 7, title: 'Pads, bends & grooves', blurb: 'The MiniLab beyond the keys: drum grooves on the pads, a beat in one hand and chords in the other, and synth bends and vibrato on the touch strips. Opens after your first rhythm lesson.' },
+  { stage: 8, title: 'Kirtan', blurb: 'Chant along on the harmonium: Shree Ram Jay Ram, the Hare Krishna mantra, Om Namah Shivaya and Govinda Jaya Jaya, over a Sa–Pa drone and a dholak & kartal rhythm.' },
 ]

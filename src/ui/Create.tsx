@@ -5,7 +5,7 @@ import { Session, type SessionState } from '../engine/session'
 import { midi } from '../midi/midiInput'
 import { accompaniment, detectKey, suggestChords } from '../music/harmony'
 import { parseMidiFile, toMidiFile } from '../music/midiFile'
-import { DRUMS, PAD_PITCH } from '../music/drums'
+import { currentDrums, PAD_PITCH } from '../music/drums'
 import { isBlack, noteNameOct, pc, scalePcs } from '../music/theory'
 import type { Lesson, NoteEvent } from '../music/types'
 import { draft, library, settings, sound, useStore, type Composition, type Track } from '../store/store'
@@ -141,7 +141,7 @@ export function Create() {
   const everything = comp.tracks.flatMap((t) => t.notes)
   const all = comp.tracks.filter((t) => !t.drums).flatMap((t) => t.notes)
   const lo = drumView ? PAD_PITCH : Math.min(48, ...all.map((n) => n.pitch - 2))
-  const hi = drumView ? PAD_PITCH + DRUMS.length - 1 : Math.max(72, ...all.map((n) => n.pitch + 2))
+  const hi = drumView ? PAD_PITCH + currentDrums().length - 1 : Math.max(72, ...all.map((n) => n.pitch + 2))
   const bpb = comp.timeSig[0]
   const beats = Math.max(8 * bpb, Math.ceil((Math.max(0, ...everything.map((n) => n.start + n.dur)) + 2 * bpb) / bpb) * bpb)
   const preview = (p: number, dur: number, vel = 80) => void audio.start().then(() => (p >= PAD_PITCH ? audio.drum(p - PAD_PITCH, audio.now(), vel) : audio.schedule(p, audio.now(), dur, vel)))
@@ -341,7 +341,7 @@ export function Create() {
             <div style={{ position: 'absolute', top: 18, left: 0, right: 0 }}>
               {rows.map((p, i) => drumView ? (
                 <div key={p} style={{ position: 'absolute', top: i * ROW, left: 0, right: 0, height: ROW, background: i % 2 ? 'var(--roll-row)' : 'var(--roll-row-alt)', borderBottom: '1px solid var(--roll-sep)' }}>
-                  <div style={{ width: KEYW, height: ROW, background: 'var(--panel-2)', color: DRUMS[p - PAD_PITCH].color, fontWeight: 650, fontSize: 9, lineHeight: `${ROW}px`, paddingLeft: 4, position: 'sticky', left: 0, zIndex: 1, cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden' }}>{DRUMS[p - PAD_PITCH].name}</div>
+                  <div style={{ width: KEYW, height: ROW, background: 'var(--panel-2)', color: currentDrums()[p - PAD_PITCH].color, fontWeight: 650, fontSize: 9, lineHeight: `${ROW}px`, paddingLeft: 4, position: 'sticky', left: 0, zIndex: 1, cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden' }}>{currentDrums()[p - PAD_PITCH].name}</div>
                 </div>
               ) : (
                 <div key={p} style={{ position: 'absolute', top: i * ROW, left: 0, right: 0, height: ROW, background: isBlack(p) ? 'var(--roll-black-row)' : keyPcs.includes(pc(p)) ? 'var(--roll-key-row)' : 'var(--roll-row)', borderBottom: pc(p) === 0 ? '1px solid var(--roll-c)' : '1px solid var(--roll-sep)' }}>

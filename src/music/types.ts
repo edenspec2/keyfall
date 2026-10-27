@@ -11,6 +11,7 @@ export interface NoteEvent {
   vel?: number // 1..127, default 80
   finger?: number // 1 = thumb .. 5 = little finger
   drum?: number // 0–7: a pad/drum hit (Kick, Snare, Closed hat, Open hat, Clap, Low tom, High tom, Crash)
+  text?: string // a sung syllable shown on the note (chant lessons)
 }
 
 export type PracticeMode = 'watch' | 'wait' | 'rhythm' | 'free' | 'loop'
@@ -24,7 +25,7 @@ export type LessonKind = 'play' | 'improvise' | 'echo'
 
 export interface Lesson {
   id: string // kebab-case, unique
-  stage: 1 | 2 | 3 | 4 | 5 | 6 | 7
+  stage: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8
   kind: LessonKind
   title: string
   goal: string // one-sentence learning objective
@@ -44,7 +45,9 @@ export interface Lesson {
     minTiming?: number // 0..1 fraction of hits that are on time (rhythm mode)
   }
   /** Sound for the lesson (e.g. 'synth' for pitch-bend lessons); default is the user's instrument. */
-  instrument?: 'piano' | 'epiano' | 'strings' | 'synth' | 'harmonium'
+  instrument?: 'piano' | 'epiano' | 'strings' | 'synth' | 'harmonium' | 'bansuri'
+  /** Drum kit for the lesson's drum notes and the pads while it's open (kirtan lessons use the dholak/kartal kit). */
+  kit?: 'kirtan'
   /** Unlock after this lesson has a star, instead of after the previous piece (side tracks like the pads stage). */
   unlockAfter?: string
   /** Shown when the piece needs the MiniLab octave buttons. Default range is C3–C5 (48–72). */

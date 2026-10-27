@@ -1,4 +1,4 @@
-import { DRUMS, gmToDrum, PAD_PITCH } from './drums'
+import { currentDrums, gmToDrum, PAD_PITCH } from './drums'
 import type { NoteEvent } from './types'
 
 export const PPQ = 480
@@ -33,7 +33,7 @@ export function toMidiFile(tracks: { name: string; notes: NoteEvent[]; drums?: b
     const ev: { tick: number; bytes: number[] }[] = [{ tick: 0, bytes: [0xff, 0x03, name.length, ...name] }]
     for (const n of t.notes) {
       const on = Math.max(0, Math.round(n.start * PPQ)), off = Math.max(on + 1, Math.round((n.start + n.dur) * PPQ))
-      const p = n.drum !== undefined ? DRUMS[n.drum].gm : n.pitch & 127
+      const p = n.drum !== undefined ? currentDrums()[n.drum].gm : n.pitch & 127
       ev.push({ tick: on, bytes: [0x90 | ch, p, Math.max(1, Math.min(127, n.vel ?? 80))] })
       ev.push({ tick: off, bytes: [0x80 | ch, p, 0] })
     }

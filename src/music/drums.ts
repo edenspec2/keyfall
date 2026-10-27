@@ -14,6 +14,22 @@ export const DRUMS = [
   { name: 'Crash', short: 'X', gm: 49, color: '#5df2a0' },
 ]
 
+/** Kirtan kit: dholak strokes, hand cymbals and bells. GM notes are the nearest General MIDI percussion for export. */
+export const KIRTAN_DRUMS = [
+  { name: 'Ge (dholak bass)', short: 'Ge', gm: 64, color: '#ff8a5c' },
+  { name: 'Na (dholak open)', short: 'Na', gm: 63, color: '#ffb35e' },
+  { name: 'Tin (dholak closed)', short: 'Ti', gm: 62, color: '#ffd28a' },
+  { name: 'Ka (slap)', short: 'Ka', gm: 37, color: '#e0a3ff' },
+  { name: 'Kartals', short: 'Kt', gm: 54, color: '#ffe066' },
+  { name: 'Manjira', short: 'Mj', gm: 81, color: '#5df2a0' },
+  { name: 'Ghungroo', short: 'Gh', gm: 70, color: '#7ce0ff' },
+  { name: 'Khol (deep)', short: 'Kh', gm: 60, color: '#ff6a8a' },
+]
+export type Kit = 'standard' | 'kirtan'
+/** The kit the pads and drum notes play right now (set from Settings, and by kirtan lessons while they're open). */
+export const kit: { id: Kit } = { id: 'standard' }
+export const currentDrums = () => (kit.id === 'kirtan' ? KIRTAN_DRUMS : DRUMS)
+
 /** General MIDI drum note → nearest drum of our kit (for importing channel-10 parts). */
 export function gmToDrum(n: number): number {
   const exact = DRUMS.findIndex((d) => d.gm === n)

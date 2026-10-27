@@ -1,5 +1,5 @@
 import type { NoteEvent } from '../music/types'
-import { DRUMS, PAD_PITCH } from '../music/drums'
+import { currentDrums, PAD_PITCH } from '../music/drums'
 import { isBlack, noteName, noteNameOct } from '../music/theory'
 import type { FingerSpot } from '../music/fingering'
 import type { Grade } from '../engine/scorer'
@@ -416,6 +416,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, W: number, H: number, s
   const glow: Partial<Record<'R' | 'L', Path2D>> = {}
   const approach = pxPerBeat * 1.25 // the player's next notes glow this far above the hit line
   const labelled: number[] = []
+  const sung: { text: string; x: number; y: number }[] = [] // chant syllables, drawn beside their notes
   for (const i of vis) {
     const n = s.notes[i]
     const drum = n.drum !== undefined
@@ -432,7 +433,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, W: number, H: number, s
     const user = isUser(n)
     let b: Bucket
     if (g === 'missed') b = bucket('miss', pal.miss, pal.miss, 0.9, pal.miss)
-    else if (drum) b = bucket(`d${n.drum}${user ? 'u' : 'a'}`, '', '', user ? 1 : autoAlpha, DRUMS[n.drum!].color)
+    else if (drum) b = bucket(`d${n.drum}${user ? 'u' : 'a'}`, '', '', user ? 1 : autoAlpha, currentDrums()[n.drum!].color)
     else { const [c1, c2] = pal.hands[n.hand]; b = bucket(n.hand + (user ? 'u' : 'a'), c1, c2, user ? 1 : autoAlpha) }
     b.path.roundRect(x, top, w, bot - top, r)
     if (g === 'missed') missRims.roundRect(x, top, w, bot - top, r)
@@ -443,6 +444,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, W: number, H: number, s
       if (!drum && hitY - yBot < approach) (glow[n.hand] ??= new Path2D()).roundRect(x, top, w, bot - top, r)
     }
     if ((drum ? w > 16 : s.labels !== 'none' && bot - top > 14 && w > 12) && g !== 'missed') labelled.push(i)
+    if (n.text) sung.push({ text: n.text, x: x + w + 5, y: bot - 5 })
   }
   // Glow under the player's approaching notes: one blurred fill per hand.
   if (!calm) for (const h of ['R', 'L'] as const) {
@@ -480,11 +482,18 @@ export function drawScene(ctx: CanvasRenderingContext2D, W: number, H: number, s
       const f = labelFont(Math.round(Math.min(drum ? 11 : 12, w * (drum ? 0.4 : 0.45))))
       if (f !== font) { ctx.font = f; font = f }
       ctx.fillStyle = drum ? 'rgba(10,12,20,0.8)' : pal.label
-      if (drum) { ctx.fillText(DRUMS[n.drum!].short, x + w / 2, bot - 3); continue }
+      if (drum) { ctx.fillText(currentDrums()[n.drum!].short, x + w / 2, bot - 3); continue }
       ctx.fillText(s.labels === 'octave' ? noteNameOct(n.pitch) : noteName(n.pitch), x + w / 2, bot - 6)
       if (n.finger && isUser(n) && bot - top > 30) ctx.fillText(String(n.finger), x + w / 2, bot - 20)
     }
     ctx.textAlign = 'left'
+  }
+
+  // Chant words: shown even with note labels off, since they are what you sing.
+  if (sung.length) {
+    ctx.font = labelFont(14)
+    ctx.fillStyle = pal.milestone
+    for (const t of sung) ctx.fillText(t.text, t.x, t.y)
   }
 
   // Free-play trails rising from the keys, batched in two colours.
@@ -593,7 +602,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, W: number, H: number, s
       const d = ease(PAD_PITCH + dIdx, lit)
       const inset = 3 + d * 2
       const px = x + inset, py = geo.padTop + d * 2, pw = w - inset * 2, ph = geo.padSize - d * 3
-      const color = f && f.until > now && !f.ok ? pal.bad : DRUMS[dIdx].color
+      const color = f && f.until > now && !f.ok ? pal.bad : currentDrums()[dIdx].color
       if (lit) { ctx.globalAlpha = 0.35; ctx.fillStyle = color; roundRect(ctx, px - 4, py - 4, pw + 8, ph + 8, 12); ctx.fill(); ctx.globalAlpha = 1 }
       ctx.fillStyle = 'rgba(0,0,0,0.18)'
       roundRect(ctx, px, py + 3, pw, ph, 9); ctx.fill()
@@ -609,7 +618,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, W: number, H: number, s
       ctx.font = `600 ${Math.min(10, w * 0.22)}px ${FONT}`
       ctx.textAlign = 'center'
       ctx.fillText(String(dIdx + 1), x + w / 2, py + 18)
-      ctx.fillText(w > 56 ? DRUMS[dIdx].name : DRUMS[dIdx].short, x + w / 2, py + ph - 8)
+      ctx.fillText(w > 56 ? currentDrums()[dIdx].name : currentDrums()[dIdx].short, x + w / 2, py + ph - 8)
       ctx.textAlign = 'left'
     }
   }

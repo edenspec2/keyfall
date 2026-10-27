@@ -1,5 +1,5 @@
 // Music theory helpers. Pure functions.
-import { DRUMS, PAD_PITCH } from './drums'
+import { currentDrums, PAD_PITCH } from './drums'
 
 export const SHARP_NAMES = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B']
 const FLAT_NAMES = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B']
@@ -7,7 +7,7 @@ const FLAT_NAMES = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A'
 export const pc = (pitch: number) => ((pitch % 12) + 12) % 12
 export const octaveOf = (pitch: number) => Math.floor(pitch / 12) - 1 // 60 → 4
 export const isBlack = (pitch: number) => [1, 3, 6, 8, 10].includes(pc(pitch))
-export const noteName = (pitch: number, flats = false) => (pitch >= PAD_PITCH ? DRUMS[pitch - PAD_PITCH]?.name ?? 'Pad' : (flats ? FLAT_NAMES : SHARP_NAMES)[pc(pitch)])
+export const noteName = (pitch: number, flats = false) => (pitch >= PAD_PITCH ? currentDrums()[pitch - PAD_PITCH]?.name ?? 'Pad' : (flats ? FLAT_NAMES : SHARP_NAMES)[pc(pitch)])
 export const noteNameOct = (pitch: number, flats = false) => (pitch >= PAD_PITCH ? noteName(pitch) : noteName(pitch, flats) + octaveOf(pitch))
 /** Tone.js wants ASCII names: C#4 */
 export const toneName = (pitch: number) => SHARP_NAMES[pc(pitch)].replace('♯', '#') + octaveOf(pitch)

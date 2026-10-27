@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { audio, INSTRUMENTS, type InstrumentId } from '../audio/audioEngine'
+import { audio, ENGINE_KEY, INSTRUMENTS, type InstrumentId } from '../audio/audioEngine'
 import { midi } from '../midi/midiInput'
 import { noteNameOct } from '../music/theory'
 import { progress, settings, useStore } from '../store/store'
@@ -102,6 +102,26 @@ function PadLearn() {
  * Audio status plus a beep that bypasses the whole sound engine. If the beep is heard but notes are not, the app is at
  * fault; if neither is heard, the phone's output is (volume, or Android sending audio to the USB keyboard).
  */
+/** Full or light sound engine. Light (default on phones) skips reverb, chorus, delay and the widener to spare the CPU. */
+function EngineChoice() {
+  const read = () => { try { return localStorage.getItem(ENGINE_KEY) ?? 'auto' } catch { return 'auto' } }
+  const [pick, setPick] = useState(read)
+  const set = (v: string) => { try { localStorage.setItem(ENGINE_KEY, v) } catch { /* blocked */ } setPick(v) }
+  return (
+    <div className="col" style={{ gap: 6 }}>
+      <div className="row">
+        <span className="sub">Sound engine</span>
+        <div className="seg" role="radiogroup" aria-label="Sound engine">
+          {(['auto', 'light', 'full'] as const).map((v) => (
+            <button key={v} role="radio" aria-checked={pick === v} className={pick === v ? 'active' : ''} onClick={() => set(v)}>{v === 'auto' ? 'Auto' : v === 'light' ? 'Light' : 'Full'}</button>
+          ))}
+        </div>
+      </div>
+      <span className="sub" style={{ fontSize: 'var(--fs-sm)' }}>Light skips reverb, chorus, delay and stereo effects so phones don't stutter or go silent. Auto = light on phones. Reload the page after changing it.</span>
+    </div>
+  )
+}
+
 function AudioCheck() {
   useTicker(500)
   const [check, setCheck] = useState('')
@@ -134,6 +154,7 @@ function AudioCheck() {
         <button className="btn small primary" onClick={() => void runCheck()} disabled={!!check}>{check ? 'Checking…' : 'Run sound check'}</button>
         <span className="sub" style={{ fontSize: 'var(--fs-sm)' }}>No beep either? Turn up the media volume, and on Android try unplugging the keyboard: some phones send all sound to a USB device.</span>
       </div>
+      <EngineChoice />
       {check && <p className="callout">{check} – listen…</p>}
       {result && <p className="callout mono" style={{ userSelect: 'all' }}>{result}<br /><span className="sub">Which of the 3 beeps did you hear? Send this line and your answer.</span></p>}
     </div>

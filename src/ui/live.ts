@@ -1,4 +1,6 @@
 import { audio } from '../audio/audioEngine'
+import { kirtan } from '../audio/kirtan'
+import { kit } from '../music/drums'
 import { allSounds, handleCC } from '../audio/controls'
 import { perform } from '../audio/perform'
 import { midi } from '../midi/midiInput'
@@ -17,6 +19,7 @@ export const computerKeys = { base: 60 }
 const downKeys = new Map<string, number>() // code → pitch, so an octave change mid-press releases the right note
 let started = false
 let lastInstrument = ''
+let lastPadKit = ''
 export function initLiveInput() {
   if (started) return
   started = true
@@ -48,6 +51,8 @@ export function initLiveInput() {
     midi.filter = { port: s.midiPort, channel: s.midiChannel, pads: s.padMode, padBase: s.padBase }
     // Only on a real change: other settings writes (metronome, labels, zoom) must not undo a lesson's own instrument.
     if (s.instrument !== lastInstrument) { lastInstrument = s.instrument; audio.instrument = s.instrument }
+    if (s.padKit !== lastPadKit) { lastPadKit = s.padKit; kit.id = s.padKit } // only on a change: a kirtan lesson sets its own kit
+    kirtan.configure(s.kirtan)
     audio.latencyHint = s.audioBuffer // read when audio starts, so a change applies after a reload
     if (audio.started) audio.setVolume(s.volume)
   }

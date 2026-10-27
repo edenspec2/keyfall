@@ -1,14 +1,16 @@
 import * as Tone from 'tone'
+import { kit as drumKit, type Kit } from '../music/drums'
 import { toneName } from '../music/theory'
 import { defaults, effective, type Effective, type Params } from './sound'
 
-export type InstrumentId = 'piano' | 'epiano' | 'strings' | 'synth' | 'harmonium'
+export type InstrumentId = 'piano' | 'epiano' | 'strings' | 'synth' | 'harmonium' | 'bansuri'
 export const INSTRUMENTS: { id: InstrumentId; label: string }[] = [
   { id: 'piano', label: 'Grand piano' },
   { id: 'epiano', label: 'Electric piano' },
   { id: 'strings', label: 'Soft strings' },
   { id: 'synth', label: 'Synth lead' },
   { id: 'harmonium', label: 'Harmonium' },
+  { id: 'bansuri', label: 'Bansuri flute' },
 ]
 
 type Voice = Tone.Sampler | Tone.PolySynth
@@ -63,6 +65,13 @@ class AudioEngine {
   /** Last audio error, shown in Settings so a silent device can be diagnosed without dev tools. */
   lastError = ''
   private native = false
+  /**
+   * Light engine: notes go only through the filter, volume and limiter. A Redmi's audio thread could not keep up
+   * with the full chain (reverb, chorus, delay, widener, compressor all run continuously): its sound check measured
+   * signal inside the graph but played static, then silence. On by default on phones; 'full' or 'light' can be forced
+   * in Settings (read once, at start).
+   */
+  light = false
   private out: Tone.ToneAudioNode | null = null // end of the chain, tapped by the sound check
 
   /**
@@ -104,7 +113,9 @@ class AudioEngine {
   private fallback: Voice | null = null
   private vibrato: Tone.Vibrato | null = null
   private kit: ((time: number, vel: number) => void)[] = []
+  private kirtanKit: ((time: number, vel: number) => void)[] | null = null
   private lastHit: number[] = []
+  private mod = 0 // mod-strip position 0..1
   private bendCents = 0
   private chain: Chain | null = null
   private sounds: Partial<Record<InstrumentId, Params>> = {}
@@ -158,11 +169,12 @@ class AudioEngine {
     if (!this.started) return 'Not started – tap the screen once'
     const c = this.ctx
     const piano = this.pianoFailed ? 'piano samples failed (synth piano)' : this.pianoLoaded ? 'piano loaded' : 'piano loading (synth meanwhile)'
-    return `${c.state} · ${Math.round(c.sampleRate / 100) / 10} kHz · ${Math.round(this.outputLatency * 1000)} ms · ${piano} · ${this.native ? 'stable-buffer' : 'single'} context`
+    return `${c.state} · ${Math.round(c.sampleRate / 100) / 10} kHz · ${Math.round(this.outputLatency * 1000)} ms · ${piano} · ${this.native ? 'stable-buffer' : 'single'} context · ${this.light ? 'light' : 'full'} engine`
   }
   /** True once sound can actually be heard. */
   get running() { return this.started && this.ctx.state === 'running' }
   private async boot() {
+    this.light = lightEngine()
     const prev = Tone.getContext()
     // One audio context for the whole session, like every web piano that works on phones: swapping in a new context
     // on the first tap and closing Tone's default one left a Redmi silent, while the same phone played muted.io (one
@@ -205,13 +217,14 @@ class AudioEngine {
     const delay = new Tone.FeedbackDelay({ delayTime: 0.3, feedback: 0.3, wet: 0, maxDelay: 4 })
     delay.connect(reverbDry)
     delay.connect(reverbs[0]) // only the playing reverb is fed: an idle convolver would cost CPU for nothing
-    const keysVol = new Tone.Volume(0).connect(delay)
-    const drumsVol = new Tone.Volume(0).connect(delay)
+    const light = this.light
+    const keysVol = new Tone.Volume(0).connect(light ? limiter : delay)
+    const drumsVol = new Tone.Volume(0).connect(light ? limiter : delay)
     // Tone's tremolo centres its gain on 0.5 whatever the depth; ×2 makes depth 0 exactly unity.
     const tremoloGain = new Tone.Gain(2)
-    const tremolo = new Tone.Tremolo({ frequency: 4, depth: 0, spread: 180 }).connect(tremoloGain).start()
+    const tremolo = new Tone.Tremolo({ frequency: 4, depth: 0, spread: 180 }).connect(tremoloGain)
     const phaser = new Tone.Phaser({ frequency: 0.5, octaves: 3, baseFrequency: 350, wet: 0 })
-    const chorus = new Tone.Chorus({ frequency: 1.5, delayTime: 3.5, depth: 0.7, wet: 0 }).start()
+    const chorus = new Tone.Chorus({ frequency: 1.5, delayTime: 3.5, depth: 0.7, wet: 0 })
     const eq = new Tone.EQ3(0, 0, 0)
     const filter = new Tone.Filter({ frequency: 20000, type: 'lowpass', rolloff: -12, Q: 0.7 })
     const drive = new Tone.Distortion({ distortion: 0.3, wet: 0 })
@@ -219,8 +232,12 @@ class AudioEngine {
     // drive, EQ and phaser cost 8–21 % each and switch in and out with a crossfade.
     const b = { drive: bypass(drive), eq: bypass(eq), phaser: bypass(phaser) }
     const input = new Tone.Gain()
-    input.connect(b.drive.input); b.drive.output.connect(filter); filter.connect(b.eq.input); b.eq.output.connect(chorus)
-    chorus.connect(b.phaser.input); b.phaser.output.connect(tremolo); tremoloGain.connect(keysVol)
+    // Light: the effect nodes still exist (so every knob keeps working on PCs) but nothing feeds them, so they cost nothing.
+    if (light) { input.connect(filter); filter.connect(keysVol); comp.disconnect() } else { // unhooked: the delay/reverb/widener branch is never rendered
+      chorus.start(); tremolo.start()
+      input.connect(b.drive.input); b.drive.output.connect(filter); filter.connect(b.eq.input); b.eq.output.connect(chorus)
+      chorus.connect(b.phaser.input); b.phaser.output.connect(tremolo); tremoloGain.connect(keysVol)
+    }
     return { input, tremoloGain, drive, filter, eq, chorus, phaser, tremolo, bypass: b, keysVol, drumsVol, delay, widener, reverbs, reverbGains, reverbDry }
   }
 
@@ -290,6 +307,7 @@ class AudioEngine {
       if (a.reverbDecay !== undefined) this.reverbTimer = window.setTimeout(() => void this.reverbLength(e.reverbDecay, e.reverbPreDelay), 250)
     } else e.reverbDecay = a.reverbDecay ?? e.reverbDecay
     this.applied = e
+    this.applyVibrato()
     const v = this.voices.get(this.inst)
     if (v) this.applyVoice(this.inst, v)
     if (this.fallback) this.applyVoice('piano', this.fallback)
@@ -337,14 +355,44 @@ class AudioEngine {
     ]
   }
 
-  /** Play drum `k` (0–7). Each drum is monophonic, so start times must strictly increase. */
-  drum(k: number, time = this.now(), vel = 100) {
-    const hit = this.kit[k]
+  /** Kirtan kit: dholak strokes (Ge, Na, Tin, Ka), kartals, manjira, ghungroo and a deep khol – all synthesized. */
+  private makeKirtanKit() {
+    const bus = new Tone.Gain(0.8).connect(this.chain!.drumsVol)
+    const skin = (pitchDecay: number, octaves: number, decay: number, volume = 0) =>
+      new Tone.MembraneSynth({ pitchDecay, octaves, envelope: { attack: 0.001, decay, sustain: 0, release: 0.05 }, volume }).connect(bus)
+    const ge = skin(0.12, 2.5, 0.55), khol = skin(0.25, 3, 0.8, -5)
+    const na = skin(0.008, 1.2, 0.28, -6), tin = skin(0.006, 1, 0.07, -8)
+    const ka = new Tone.NoiseSynth({ noise: { type: 'pink' }, envelope: { attack: 0.001, decay: 0.08, sustain: 0 }, volume: 10 }).connect(new Tone.Filter(1100, 'bandpass').connect(bus))
+    const metal = (decay: number, harmonicity: number, resonance: number, volume: number) =>
+      new Tone.MetalSynth({ envelope: { attack: 0.001, decay, release: 0.05 }, harmonicity, modulationIndex: 20, resonance, octaves: 1, volume }).connect(bus)
+    const kartal = metal(0.12, 7.3, 6500, -11), manjira = metal(1.1, 12.1, 5200, -14)
+    const ghungroo = new Tone.NoiseSynth({ noise: { type: 'white' }, envelope: { attack: 0.004, decay: 0.12, sustain: 0 }, volume: -8 }).connect(new Tone.Filter(6500, 'highpass').connect(bus))
+    return [
+      (t: number, v: number) => ge.triggerAttackRelease('A1', 0.4, t, v), // Ge: low dholak, pitch glides down
+      (t: number, v: number) => na.triggerAttackRelease('D4', 0.2, t, v), // Na: open treble ring
+      (t: number, v: number) => tin.triggerAttackRelease('F4', 0.06, t, v), // Tin: closed treble
+      (t: number, v: number) => ka.triggerAttackRelease(0.05, t, v), // Ka: flat-hand slap
+      (t: number, v: number) => kartal.triggerAttackRelease(900, 0.1, t, v), // Kartals: bright jingle
+      (t: number, v: number) => manjira.triggerAttackRelease(1200, 1, t, v * 0.8), // Manjira: small cymbals that ring
+      (t: number, v: number) => ghungroo.triggerAttackRelease(0.1, t, v), // Ghungroo: ankle bells / shaker
+      (t: number, v: number) => khol.triggerAttackRelease('E1', 0.6, t, v), // Khol: deep mridanga bass
+    ]
+  }
+
+  /** Play drum `k` (0–7) of the current kit (or `kitId`). Each drum is monophonic, so start times must strictly increase. */
+  drum(k: number, time = this.now(), vel = 100, kitId: Kit = drumKit.id) {
+    if (!this.started) return
+    const hits = kitId === 'kirtan' ? (this.kirtanKit ??= this.makeKirtanKit()) : this.kit
+    const hit = hits[k]
     if (!hit) return
-    const t = Math.max(time, this.now(), (this.lastHit[k] ?? 0) + 0.01)
-    this.lastHit[k] = t
+    const slot = kitId === 'kirtan' ? k + 8 : k
+    const t = Math.max(time, this.now(), (this.lastHit[slot] ?? 0) + 0.01)
+    this.lastHit[slot] = t
     hit(t, this.gain(vel))
   }
+
+  /** Where background parts (drone, rhythm loops) join: the drums' volume, then the shared delay and reverb. */
+  accompanimentBus(): Tone.ToneAudioNode | null { return this.chain?.drumsVol ?? null }
 
   /** Pitch strip: −1..1 bends the synth sounds by up to ±2 semitones. The sampled piano doesn't bend, like a real one. */
   setBend(v: number) {
@@ -352,7 +400,9 @@ class AudioEngine {
     this.voices.forEach((voice) => { if (voice instanceof Tone.PolySynth) voice.set({ detune: this.bendCents }) })
   }
   /** Mod strip: 0..1 → vibrato depth on the synth sounds. */
-  setMod(m: number) { if (this.vibrato) this.vibrato.depth.value = m * 0.3 }
+  setMod(m: number) { this.mod = m; this.applyVibrato() }
+  /** The bansuri has a gentle vibrato of its own, like a breath; the mod strip adds to it. */
+  private applyVibrato() { if (this.vibrato) this.vibrato.depth.value = (this.inst === 'bansuri' ? 0.05 : 0) + this.mod * 0.3 }
 
   private makePiano(): Voice {
     const urls: Record<string, string> = {}
@@ -383,6 +433,9 @@ class AudioEngine {
       // Harmonium: three slightly detuned reeds (the beating of the reed banks; Timbre sets it), a bellows swell,
       // and full sustain while the key is held. The nasal reed colour comes from its default filter and EQ.
       : id === 'harmonium' ? new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'fatsawtooth', count: 3, spread: 12 }, envelope: { attack: 0.05, decay: 0.2, sustain: 0.9, release: 0.15 }, volume: -20 })
+      // Bansuri: a nearly pure, soft tone (fundamental + a few weak overtones) with a breathy swell; its natural
+      // vibrato comes from applyVibrato(), its airiness from the default chorus and reverb.
+      : id === 'bansuri' ? new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'custom', partials: [1, 0.32, 0.12, 0.05, 0.02] }, envelope: { attack: 0.08, decay: 0.15, sustain: 0.85, release: 0.3 }, volume: -20 })
       // piano fallback
       : new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'triangle' }, envelope: { attack: 0.003, decay: 1.4, sustain: 0.1, release: 0.6 }, volume: -8 })
     v.set({ detune: this.bendCents })
@@ -459,6 +512,15 @@ class AudioEngine {
   setVolume(v01: number) { Tone.getDestination().volume.rampTo(v01 <= 0 ? -80 : Math.max(-80, 20 * Math.log10(v01)), RAMP) }
   /** Measured output latency in seconds when the browser reports it (Chrome does). */
   get outputLatency() { return (this.ctx.outputLatency || 0) + (this.ctx.baseLatency || 0) }
+}
+
+/** 'auto' (light on phones and tablets), 'full' or 'light'; kept in its own key so the choice survives a reload. */
+export const ENGINE_KEY = 'pianoapp.v1.engine'
+export function lightEngine() {
+  let pick = 'auto'
+  try { pick = localStorage.getItem(ENGINE_KEY) ?? 'auto' } catch { /* storage blocked: auto */ }
+  if (pick !== 'auto') return pick === 'light'
+  return typeof navigator !== 'undefined' && /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent)
 }
 
 export const audio = new AudioEngine()

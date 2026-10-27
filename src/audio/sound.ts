@@ -64,6 +64,8 @@ const INIT: Record<InstrumentId, Partial<Params>> = {
   synth: { attack: 0.005, decay: 0.2, sustain: 0.4, release: 0.3 },
   // Reed organ: bellows swell, held tone, a darker nasal colour (filter + mid lift) and a slight bellows wobble.
   harmonium: { attack: 0.05, decay: 0.2, sustain: 0.9, release: 0.15, cutoff: 2600, resonance: 1.2, eqMid: 2, tremolo: 0.1, lfoRate: 4.5, reverbMix: 0.12 },
+  // Bamboo flute: soft breathy swell, airy chorus and a hall-like reverb; its vibrato is built into the engine.
+  bansuri: { attack: 0.08, decay: 0.15, sustain: 0.85, release: 0.3, cutoff: 5000, chorus: 0.12, lfoRate: 0.8, reverbMix: 0.28, reverbDecay: 2.8, vibratoRate: 5 },
 }
 const DEFAULTS = Object.fromEntries(Object.entries(INIT).map(([k, v]) => [k, { ...BASE, ...v }])) as Record<InstrumentId, Params>
 export const defaults = (inst: InstrumentId): Params => DEFAULTS[inst] ?? BASE
@@ -166,6 +168,9 @@ export const FACTORY_PRESETS: Preset[] = [
   { name: 'Init', instrument: 'harmonium', params: {} },
   { name: 'Indian Harmonium', instrument: 'harmonium', params: { cutoff: 3200, eqMid: 3, tremolo: 0.18, lfoRate: 5.5, reverbMix: 0.08 } },
   { name: 'Church Reed Organ', instrument: 'harmonium', params: { timbre: 0.3, cutoff: 1800, attack: 0.09, release: 0.4, tremolo: 0, reverbMix: 0.35, reverbDecay: 3.5, width: 0.7 } },
+  { name: 'Init', instrument: 'bansuri', params: {} },
+  { name: 'Temple Bansuri', instrument: 'bansuri', params: { reverbMix: 0.42, reverbDecay: 4.5, reverbPreDelay: 0.03, width: 0.8, release: 0.5 } },
+  { name: 'Close & Breathy', instrument: 'bansuri', params: { cutoff: 7000, chorus: 0.25, reverbMix: 0.15, attack: 0.05 } },
   { name: 'Musette Accordion', instrument: 'harmonium', params: { timbre: 0.9, cutoff: 3800, eqMid: 4, tremolo: 0.12, lfoRate: 6, reverbMix: 0.1 } },
 ]
 
