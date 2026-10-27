@@ -12,12 +12,43 @@ export const INSTRUMENTS: { id: InstrumentId; label: string }[] = [
 
 type Voice = Tone.Sampler | Tone.PolySynth
 const RAMP = 0.04 // s: long enough to avoid zipper noise from 7-bit knob steps, short enough to feel direct
+const XFADE = 0.03 // s: switching an effect in or out
+const REVERB_XFADE = 0.15 // s: from the old reverb to a newly rendered one
 
-/** The effects chain. Keys: input → [active stages of] drive → filter → EQ → chorus → phaser → tremolo → keys vol; drums join after it. */
+/** A stage that can be switched off to save CPU, without a click. */
+interface Bypass { input: Tone.Gain; output: Tone.Gain; set(on: boolean): void }
+/**
+ * Switching by reconnecting the graph clicked: the path jumped in one step and a freshly connected filter starts
+ * from silence. Here the stage crossfades with a dry path, and only stops processing once it has faded out.
+ */
+function bypass(node: Tone.ToneAudioNode): Bypass {
+  const input = new Tone.Gain(), output = new Tone.Gain()
+  const dry = new Tone.Gain(1).connect(output), wet = new Tone.Gain(0).connect(output)
+  input.connect(dry)
+  node.connect(wet)
+  let on = false, timer = 0
+  return {
+    input, output,
+    set(v) {
+      if (v === on) return
+      on = v
+      clearTimeout(timer)
+      if (v) input.connect(node)
+      wet.gain.rampTo(v ? 1 : 0, XFADE)
+      dry.gain.rampTo(v ? 0 : 1, XFADE)
+      if (!v) timer = window.setTimeout(() => { if (!on) input.disconnect(node) }, XFADE * 1000 + 50)
+    },
+  }
+}
+
+/** The effects chain. Keys: input → drive → filter → EQ → chorus → phaser → tremolo → keys vol; drums join after it. */
 interface Chain {
   input: Tone.Gain; tremoloGain: Tone.Gain
   drive: Tone.Distortion; filter: Tone.Filter; eq: Tone.EQ3; chorus: Tone.Chorus; phaser: Tone.Phaser; tremolo: Tone.Tremolo
-  keysVol: Tone.Volume; drumsVol: Tone.Volume; delay: Tone.FeedbackDelay; reverb: Tone.Reverb; widener: Tone.StereoWidener
+  bypass: { drive: Bypass; eq: Bypass; phaser: Bypass }
+  keysVol: Tone.Volume; drumsVol: Tone.Volume; delay: Tone.FeedbackDelay; widener: Tone.StereoWidener
+  // Two fully-wet reverbs: a new length renders into the idle one, then the sound crossfades to it.
+  reverbs: [Tone.Reverb, Tone.Reverb]; reverbGains: [Tone.Gain, Tone.Gain]; reverbDry: Tone.Gain
 }
 
 /**
@@ -48,8 +79,8 @@ class AudioEngine {
   private voiceKeys = new WeakMap<Voice, string>()
   private reverbTimer = 0
   private starting: Promise<void> | null = null
-  private wired = ''
-  private rewireTimer = 0
+  private reverbOn = 0 // which of the two reverbs is playing
+  private reverbJob = 0 // newest length request; older renders that finish late are dropped
   private liveVoice = new Map<number, Voice>() // pitch → voice that started it, so the release reaches the same voice
   /** 'interactive' = smallest buffer; 'balanced' trades ~20 ms for fewer crackles. Read once, when audio starts. */
   latencyHint: AudioContextLatencyCategory = 'interactive'
@@ -131,53 +162,63 @@ class AudioEngine {
     const limiter = new Tone.Limiter(-1).toDestination()
     const comp = new Tone.Compressor({ threshold: -12, ratio: 3, attack: 0.005, release: 0.2 }).connect(limiter)
     const widener = new Tone.StereoWidener(0.5).connect(comp)
-    const reverb = new Tone.Reverb({ decay: 2.2, preDelay: 0.01, wet: 0 }).connect(widener)
-    const delay = new Tone.FeedbackDelay({ delayTime: 0.3, feedback: 0.3, wet: 0, maxDelay: 4 }).connect(reverb)
+    const reverbDry = new Tone.Gain(1).connect(widener)
+    const reverbGains: [Tone.Gain, Tone.Gain] = [new Tone.Gain(0).connect(widener), new Tone.Gain(0).connect(widener)]
+    const reverbs: [Tone.Reverb, Tone.Reverb] = [
+      new Tone.Reverb({ decay: 2.2, preDelay: 0.01, wet: 1 }).connect(reverbGains[0]),
+      new Tone.Reverb({ decay: 2.2, preDelay: 0.01, wet: 1 }).connect(reverbGains[1]),
+    ]
+    const delay = new Tone.FeedbackDelay({ delayTime: 0.3, feedback: 0.3, wet: 0, maxDelay: 4 })
+    delay.connect(reverbDry)
+    delay.connect(reverbs[0]) // only the playing reverb is fed: an idle convolver would cost CPU for nothing
     const keysVol = new Tone.Volume(0).connect(delay)
     const drumsVol = new Tone.Volume(0).connect(delay)
     // Tone's tremolo centres its gain on 0.5 whatever the depth; ×2 makes depth 0 exactly unity.
     const tremoloGain = new Tone.Gain(2)
     const tremolo = new Tone.Tremolo({ frequency: 4, depth: 0, spread: 180 }).connect(tremoloGain).start()
     const phaser = new Tone.Phaser({ frequency: 0.5, octaves: 3, baseFrequency: 350, wet: 0 })
-    const chorus = new Tone.Chorus({ frequency: 1.5, delayTime: 3.5, depth: 0.7, wet: 0 })
+    const chorus = new Tone.Chorus({ frequency: 1.5, delayTime: 3.5, depth: 0.7, wet: 0 }).start()
     const eq = new Tone.EQ3(0, 0, 0)
     const filter = new Tone.Filter({ frequency: 20000, type: 'lowpass', rolloff: -12, Q: 0.7 })
     const drive = new Tone.Distortion({ distortion: 0.3, wet: 0 })
-    // The stages are wired by rewire(): only effects that are turned up sit in the signal path.
-    return { input: new Tone.Gain(), tremoloGain, drive, filter, eq, chorus, phaser, tremolo, keysVol, drumsVol, delay, reverb, widener }
+    // Measured CPU: filter, chorus and tremolo are nearly free, so they stay in the path for good;
+    // drive, EQ and phaser cost 8–21 % each and switch in and out with a crossfade.
+    const b = { drive: bypass(drive), eq: bypass(eq), phaser: bypass(phaser) }
+    const input = new Tone.Gain()
+    input.connect(b.drive.input); b.drive.output.connect(filter); filter.connect(b.eq.input); b.eq.output.connect(chorus)
+    chorus.connect(b.phaser.input); b.phaser.output.connect(tremolo); tremoloGain.connect(keysVol)
+    return { input, tremoloGain, drive, filter, eq, chorus, phaser, tremolo, bypass: b, keysVol, drumsVol, delay, widener, reverbs, reverbGains, reverbDry }
   }
 
-  /**
-   * Effects at zero still cost CPU (the phaser alone re-tunes 20 filters every sample), which caused crackles.
-   * Route the keys only through the stages that are on; reconnect when one is turned up or back to zero.
-   */
-  private rewire(e: Effective, later = false) {
+  /** Effects at zero still cost CPU: drive, EQ and phaser leave the path (with a crossfade) while they're at zero. */
+  private rewire(e: Effective) {
+    const b = this.chain!.bypass
+    b.drive.set(e.drive > 0)
+    b.eq.set(e.eqLow !== 0 || e.eqMid !== 0 || e.eqHigh !== 0)
+    b.phaser.set(e.phaser > 0)
+  }
+
+  /** Reverb mix as an equal-power crossfade, like Tone's own wet/dry. */
+  private reverbMix(mix: number) {
     const c = this.chain!
-    const stages: [boolean, Tone.ToneAudioNode, Tone.ToneAudioNode][] = [
-      [e.drive > 0, c.drive, c.drive],
-      [e.cutoff < 19999 || e.filterType !== 'lowpass', c.filter, c.filter],
-      [e.eqLow !== 0 || e.eqMid !== 0 || e.eqHigh !== 0, c.eq, c.eq],
-      [e.chorus > 0, c.chorus, c.chorus],
-      [e.phaser > 0, c.phaser, c.phaser],
-      [e.tremolo > 0, c.tremolo, c.tremoloGain],
-    ]
-    let key = stages.map((x) => +x[0]).join('')
-    clearTimeout(this.rewireTimer)
-    // Taking a stage out: keep it wired until apply()'s ramp has brought it to 0, so a preset switch doesn't click.
-    if (!later && [...this.wired].some((b, i) => b === '1' && key[i] === '0')) {
-      this.rewireTimer = window.setTimeout(() => this.rewire(this.applied as Effective, true), RAMP * 1000 + 30)
-      key = [...key].map((b, i) => (b === '1' || this.wired[i] === '1' ? '1' : '0')).join('') // add new stages now, remove later
-    }
-    if (key === this.wired) return
-    const chorusWas = this.wired[3] === '1'
-    this.wired = key
-    c.input.disconnect()
-    for (const [, , out] of stages) out.disconnect()
-    let prev: Tone.ToneAudioNode = c.input
-    stages.forEach(([, inp, out], i) => { if (key[i] === '1') { prev.connect(inp); prev = out } })
-    prev.connect(c.keysVol)
-    // Its LFO only runs while wired (start/stop on change only: restarting a running source throws in Tone).
-    if (key[3] === '1' && !chorusWas) c.chorus.start(); else if (key[3] !== '1' && chorusWas) c.chorus.stop()
+    c.reverbDry.gain.rampTo(Math.cos(mix * Math.PI / 2), RAMP)
+    c.reverbGains[this.reverbOn].gain.rampTo(Math.sin(mix * Math.PI / 2), RAMP)
+  }
+
+  /** New reverb length: render it into the idle reverb, then crossfade, so the playing tail is never cut off. */
+  private async reverbLength(decay: number, preDelay: number) {
+    const c = this.chain!, job = ++this.reverbJob
+    const from = this.reverbOn, to = 1 - from, next = c.reverbs[to]
+    if (next.decay !== decay) next.decay = decay
+    if (next.preDelay !== preDelay) next.preDelay = preDelay
+    await next.ready
+    if (job !== this.reverbJob) return // the knob moved on; a newer render will take over
+    c.delay.connect(next)
+    const mix = (this.applied as Effective).reverbMix ?? 0
+    c.reverbGains[to].gain.rampTo(Math.sin(mix * Math.PI / 2), REVERB_XFADE)
+    c.reverbGains[from].gain.rampTo(0, REVERB_XFADE)
+    this.reverbOn = to
+    window.setTimeout(() => { if (this.reverbOn === to) c.delay.disconnect(c.reverbs[from]) }, REVERB_XFADE * 1000 + 50)
   }
 
   /** Latest parameters per instrument (from the store); the one for the current instrument is applied. */
@@ -205,14 +246,14 @@ class AudioEngine {
     if (a.delayBeats !== e.delayBeats || this.appliedBpm !== this.bpm) c.delay.delayTime.rampTo(Math.min(4, e.delayBeats * 60 / this.bpm), 0.05)
     this.appliedBpm = this.bpm
     ramp('delayFeedback', c.delay.feedback); ramp('delayMix', c.delay.wet)
-    ramp('reverbMix', c.reverb.wet)
+    if (a.reverbMix !== e.reverbMix) this.reverbMix(e.reverbMix)
     ramp('width', c.widener.width)
     if (this.vibrato) ramp('vibratoRate', this.vibrato.frequency)
-    // Tone.Reverb renders a new impulse on every decay/pre-delay change; wait until the knob rests.
-    // The old impulse keeps playing until the new one is ready.
+    // A new reverb length is a full impulse render; wait until the knob rests, then crossfade to it.
     if (Math.abs((a.reverbDecay ?? 0) - e.reverbDecay) > 0.02 || a.reverbPreDelay !== e.reverbPreDelay) {
       clearTimeout(this.reverbTimer)
-      this.reverbTimer = window.setTimeout(() => { c.reverb.decay = e.reverbDecay; c.reverb.preDelay = e.reverbPreDelay }, 250)
+      // The very first apply happens at start, when both reverbs already hold this length.
+      if (a.reverbDecay !== undefined) this.reverbTimer = window.setTimeout(() => void this.reverbLength(e.reverbDecay, e.reverbPreDelay), 250)
     } else e.reverbDecay = a.reverbDecay ?? e.reverbDecay
     this.applied = e
     const v = this.voices.get(this.inst)
@@ -376,7 +417,8 @@ class AudioEngine {
     this.liveVoice.clear()
   }
 
-  setVolume(v01: number) { Tone.getDestination().volume.value = v01 <= 0 ? -Infinity : 20 * Math.log10(v01) }
+  // Ramped: fader 4 drives this, and a hard step on every MIDI message zippers. -80 dB is silent enough for "0".
+  setVolume(v01: number) { Tone.getDestination().volume.rampTo(v01 <= 0 ? -80 : Math.max(-80, 20 * Math.log10(v01)), RAMP) }
   /** Measured output latency in seconds when the browser reports it (Chrome does). */
   get outputLatency() { return (this.ctx.outputLatency || 0) + (this.ctx.baseLatency || 0) }
 }
