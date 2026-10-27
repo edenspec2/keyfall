@@ -21,7 +21,13 @@ export function initLiveInput() {
   if (started) return
   started = true
   // Sound first: this listener is registered before any screen's, so audio is triggered before scoring/drawing.
+  const wake = () => {
+    if (audio.running) return
+    const ua = (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation
+    if (ua?.hasBeenActive) void audio.start() // allowed after any earlier tap; the MiniLab alone can't unlock audio
+  }
   midi.on((e) => {
+    if (e.type === 'on' || e.type === 'pad') wake()
     if (e.type === 'on') {
       perform.noteOn(e.pitch, e.vel) // straight to audio.noteOn unless arp/chord memory are on in free play
       trails.push({ pitch: e.pitch, on: performance.now(), off: null })

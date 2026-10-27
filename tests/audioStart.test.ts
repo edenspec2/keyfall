@@ -22,8 +22,9 @@ describe('audio.start', () => {
     const a = audio.start(), b = audio.start()
     expect(a).toBe(b)
     await Promise.all([a, b, audio.start()])
-    expect(made.contexts).toBe(1)
-    expect(made.closed).toBe(1) // the default pre-click context is closed
+    // One context for the session: Tone's own is kept and resumed (swapping contexts left a Redmi silent).
+    expect(made.contexts).toBe(0)
+    expect(made.closed).toBe(0)
     expect(audio.started).toBe(true)
     // Still suspended (a touch's press-down is not a gesture on phones): every later call asks again.
     expect(made.resumes).toBe(3)

@@ -30,6 +30,7 @@ class AudioEngine {
   pianoFailed = false
   /** Last audio error, shown in Settings so a silent device can be diagnosed without dev tools. */
   lastError = ''
+  private native = false
   private inst: InstrumentId = 'piano'
   private voices = new Map<InstrumentId, Voice>()
   private sustained = new Set<number>() // released while the pedal was down
@@ -93,15 +94,24 @@ class AudioEngine {
     if (!this.started) return 'Not started – tap the screen once'
     const c = this.ctx
     const piano = this.pianoFailed ? 'piano samples failed (synth piano)' : this.pianoLoaded ? 'piano loaded' : 'piano loading (synth meanwhile)'
-    return `${c.state} · ${Math.round(c.sampleRate / 100) / 10} kHz · ${Math.round(this.outputLatency * 1000)} ms · ${piano}`
+    return `${c.state} · ${Math.round(c.sampleRate / 100) / 10} kHz · ${Math.round(this.outputLatency * 1000)} ms · ${piano} · ${this.native ? 'stable-buffer' : 'single'} context`
   }
   /** True once sound can actually be heard. */
   get running() { return this.started && this.ctx.state === 'running' }
   private async boot() {
     const prev = Tone.getContext()
-    // lookAhead 0 because we schedule with explicit times.
-    Tone.setContext(new Tone.Context({ latencyHint: this.latencyHint, lookAhead: 0 }))
-    void (prev as Tone.Context).close().catch(() => {}) // the default context Tone made before the click; two live contexts compete for the device
+    // One audio context for the whole session, like every web piano that works on phones: swapping in a new context
+    // on the first tap and closing Tone's default one left a Redmi silent, while the same phone played muted.io (one
+    // default context, resumed on tap) and a plain test beep. Only the "Stable" buffer setting needs its own context,
+    // because a latency hint can only be chosen when a context is created. lookAhead 0: we schedule with explicit times.
+    if (this.latencyHint === 'interactive' || prev.rawContext.state === 'closed') {
+      prev.lookAhead = 0
+      this.native = false
+    } else {
+      Tone.setContext(new Tone.Context({ latencyHint: this.latencyHint, lookAhead: 0 }))
+      this.native = true
+      void (prev as Tone.Context).close().catch(() => {}) // two live contexts would compete for the device
+    }
     // Build everything before asking to resume, and don't wait for it: if this event was not a gesture the browser
     // accepts (a touch's press-down), resuming waits for the next one, and the instruments must already exist then.
     // Waiting here used to leave the app silent for good on phones.
