@@ -1,4 +1,4 @@
-/** Mochi, the Keyfall mascot: a soft mochi with a music-note sprout. Moods follow how a run went. */
+/** Mochi, the Mochi MIDI mascot: a soft mochi with a music-note sprout. Moods follow how a run went. */
 export type Mood = 'happy' | 'star' | 'calm'
 
 export function Mascot({ size = 40, mood = 'happy', title }: { size?: number; mood?: Mood; title?: string }) {

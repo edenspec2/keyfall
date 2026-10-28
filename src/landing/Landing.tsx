@@ -83,7 +83,7 @@ export function Landing() {
       </section>
 
       <footer className="landing-foot sub">
-        <a href="../privacy.html">Privacy</a> · <a href="https://github.com/edenspec2/keyfall" target="_blank" rel="noopener">GitHub</a> · Piano samples: Salamander Grand Piano (CC-BY 3.0, Alexander Holm)
+        <a href="../privacy.html">Privacy</a> · <a href="https://github.com/edenspec2/mochimidi" target="_blank" rel="noopener">GitHub</a> · Piano samples: Salamander Grand Piano (CC-BY 3.0, Alexander Holm)
       </footer>
     </div>
   )
