@@ -205,7 +205,7 @@ function Calibration() {
 }
 
 /** The beta feedback form (Tally or Google Forms); '' hides the button. */
-const FEEDBACK_URL = ''
+const FEEDBACK_URL = 'https://tally.so/r/gbbOg1'
 
 /** Feedback, privacy and credits. The piano samples are CC BY 3.0, which requires this visible credit. */
 function About() {
