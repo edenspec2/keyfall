@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#fff5f9" />
+    <title>Learn piano on a MIDI keyboard, free – Mochi MIDI</title>
+    <meta name="description" content="Free browser piano lessons for 25-key MIDI controllers like the Arturia MiniLab 3. Falling notes, chord names, works offline. Try a lesson right on this page." />
+    <meta property="og:title" content="Mochi MIDI – learn piano on your MIDI controller" />
+    <meta property="og:description" content="Free browser piano lessons for small MIDI keyboards. Play a lesson right on the page, no keyboard needed." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary" />
+    <link rel="icon" href="../icon-192.png" />
+    <link rel="apple-touch-icon" href="../icon-192.png" />
+    <script type="application/ld+json">
+      {"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "Mochi MIDI", "applicationCategory": "MusicApplication",
+       "operatingSystem": "Chrome, Edge (Windows, macOS, Linux, Android)", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"}}
+    </script>
+    <script>
+      // Same theme as the app (they share storage), applied before the first paint.
+      try {
+        var t = (JSON.parse(localStorage.getItem('pianoapp.v1.settings') || '{}').theme) || 'light'
+        if (t === 'system') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+        document.documentElement.dataset.theme = t
+      } catch (e) { document.documentElement.dataset.theme = 'light' }
+    </script>
+  </head>
+  <body class="landing">
+    <div id="landing"></div>
+    <script type="module" src="/src/landing/main.tsx"></script>
+  </body>
+</html>
