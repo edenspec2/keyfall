@@ -2,12 +2,12 @@ import { describe, expect, it, vi } from 'vitest'
 
 // Like audioStart.test.ts, but every constructed node is its own stand-in that remembers what it connects to,
 // so the light engine's wiring (the whole phone fix) can be checked.
-interface Rec { kind: string; to: unknown[]; cut: boolean; disposed?: boolean }
+interface Rec { kind: string; to: unknown[]; cut: boolean; disposed?: boolean; opts?: Record<string, number> }
 const any: any = new Proxy(function () {}, { get: (_t, k) => (k === 'then' ? undefined : any), set: () => true, apply: () => any, construct: () => any })
 const made = vi.hoisted(() => ({ nodes: [] as { rec: Rec; self: unknown }[] }))
 vi.mock('tone', () => {
-  const kind = (name: string) => function () {
-    const rec: Rec = { kind: name, to: [], cut: false }
+  const kind = (name: string) => function (opts?: Record<string, number>) {
+    const rec: Rec = { kind: name, to: [], cut: false, opts }
     const self: any = new Proxy(function () {}, {
       get: (_t, k) => {
         if (k === 'then') return undefined
@@ -22,7 +22,7 @@ vi.mock('tone', () => {
     made.nodes.push({ rec, self })
     return self
   }
-  const names = ['Synth', 'Limiter', 'Compressor', 'StereoWidener', 'Reverb', 'FeedbackDelay', 'Volume', 'Tremolo', 'Gain', 'Phaser', 'Chorus', 'EQ3', 'Filter',
+  const names = ['Synth', 'Limiter', 'Compressor', 'WaveShaper', 'StereoWidener', 'Reverb', 'FeedbackDelay', 'Volume', 'Tremolo', 'Gain', 'Phaser', 'Chorus', 'EQ3', 'Filter',
     'Distortion', 'Vibrato', 'Sampler', 'PolySynth', 'FMSynth', 'AMSynth', 'MembraneSynth', 'NoiseSynth', 'MetalSynth']
   return {
     ...Object.fromEntries(names.map((n) => [n, kind(n)])),
@@ -43,6 +43,9 @@ describe('light engine (phones)', () => {
     const of = (k: string) => made.nodes.filter((n) => n.rec.kind === k)
     // Compressors in build order: the limiter, then the phone bus.
     expect(of('Compressor').length).toBe(2)
+    // The browser's compressor takes attack and release only up to 1 s; Tone throws above that and the engine
+    // never finished building (a 1.2 s release left the phone silent).
+    for (const c of of('Compressor')) expect([c.rec.opts?.attack, c.rec.opts?.release].every((v) => v === undefined || (v >= 0 && v <= 1))).toBe(true)
     const [lim, lift] = of('Compressor')
     expect(of('Gain').some((g) => lift.rec.to.includes(g.self) && g.rec.to.includes(lim.self))).toBe(true)
     const vols = of('Volume').filter((n) => n.rec.to.includes(lift.self))
@@ -74,16 +77,22 @@ describe('light engine (phones)', () => {
   })
 })
 
-describe('shorten (phone piano samples)', () => {
-  it('keeps the first seconds as mono and fades out the cut', async () => {
-    const { shorten } = await import('../src/audio/audioEngine')
+describe('trimTail (phone piano samples)', () => {
+  it('keeps stereo, cuts where the note has faded 45 dB, fades the cut, and respects 2.5 s and maxSec', async () => {
+    const { trimTail } = await import('../src/audio/audioEngine')
     const buf = (ch: Float32Array[]) => ({ length: ch[0].length, sampleRate: 4, numberOfChannels: ch.length, getChannelData: (i: number) => ch[i] })
-    const ctx = { createBuffer: (_n: number, len: number) => buf([new Float32Array(len)]) }
-    const long = buf([new Float32Array(40).fill(1), new Float32Array(40).fill(0.5)]) // 10 s at 4 Hz, stereo
-    const out = shorten(ctx as never, long as never, 2) // 2 s = 8 samples
-    expect(out.length).toBe(8)
-    expect(Array.from(out.getChannelData(0))).toEqual([0.75, 0.75, 0.75, 0.75, 0.75, 0.75 * 3 / 4, 0.75 / 2, 0.75 / 4])
-    const short = shorten(ctx as never, buf([new Float32Array(4).fill(1)]) as never, 2) // shorter than 2 s: untouched
-    expect(Array.from(short.getChannelData(0))).toEqual([1, 1, 1, 1])
+    const ctx = { createBuffer: (n: number, len: number) => buf(Array.from({ length: n }, () => new Float32Array(len))) }
+    // 20 s at 4 Hz: a strike of 1, a ring of 0.1 until 10 s, then -60 dB (below the -45 dB floor).
+    const note = (k: number) => Float32Array.from({ length: 80 }, (_, i) => k * (i < 4 ? 1 : i < 40 ? 0.1 : 0.001))
+    const out = trimTail(ctx as never, buf([note(1), note(0.5)]) as never)
+    expect(out.numberOfChannels).toBe(2) // no mono sum: the two mics are far apart, summing cancelled 1.4-4 dB
+    expect(out.length).toBe(40) // cut where the ring falls below the floor
+    expect(Array.from(out.getChannelData(0).slice(32))).toEqual([0.1, 0.1, 0.1, 0.1, 0.1, 0.075, 0.05, 0.025].map((v) => Math.fround(v)))
+    expect(out.getChannelData(1)[10]).toBeCloseTo(0.05) // right channel kept as recorded
+    expect(trimTail(ctx as never, buf([note(1)]) as never, -45, 5).length).toBe(20) // capped at maxSec
+    const quick = Float32Array.from({ length: 80 }, (_, i) => (i < 4 ? 1 : 0))
+    expect(trimTail(ctx as never, buf([quick]) as never).length).toBe(10) // never shorter than 2.5 s
+    const short = buf([new Float32Array(6).fill(1)])
+    expect(trimTail(ctx as never, short as never)).toBe(short) // nothing to cut: the recording itself
   })
 })

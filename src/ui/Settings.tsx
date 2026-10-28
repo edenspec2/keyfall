@@ -117,7 +117,7 @@ function EngineChoice() {
           ))}
         </div>
       </div>
-      <span className="sub" style={{ fontSize: 'var(--fs-sm)' }}>Light skips reverb, chorus, delay and stereo effects, uses a shorter piano and simpler drawing, so phones don't stutter or go silent. Auto = light on phones. Reload the page after changing it.</span>
+      <span className="sub" style={{ fontSize: 'var(--fs-sm)' }}>Light skips reverb, chorus, delay and stereo effects and draws more simply, so phones don't stutter or go silent. Auto = light on phones. Reload the page after changing it.</span>
     </div>
   )
 }

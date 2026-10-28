@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 const node: any = new Proxy(function () {}, { get: (_t, k) => (k === 'then' ? undefined : node), apply: () => node, construct: () => node })
 const made = vi.hoisted(() => ({ contexts: 0, closed: 0, resumes: 0 }))
 vi.mock('tone', () => {
-  const names = ['Synth', 'Limiter', 'Compressor', 'StereoWidener', 'Reverb', 'FeedbackDelay', 'Volume', 'Tremolo', 'Gain', 'Phaser', 'Chorus', 'EQ3', 'Filter',
+  const names = ['Synth', 'Limiter', 'Compressor', 'WaveShaper', 'StereoWidener', 'Reverb', 'FeedbackDelay', 'Volume', 'Tremolo', 'Gain', 'Phaser', 'Chorus', 'EQ3', 'Filter',
     'Distortion', 'Vibrato', 'Sampler', 'PolySynth', 'FMSynth', 'AMSynth', 'MembraneSynth', 'NoiseSynth', 'MetalSynth', 'getDestination', 'immediate']
   return {
     ...Object.fromEntries(names.map((n) => [n, node])),

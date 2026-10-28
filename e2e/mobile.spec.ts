@@ -8,9 +8,9 @@ test('phone: the first tap turns the sound on', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('pianoapp.v1.settings', JSON.stringify({ onboarded: true })))
   await page.goto('/')
   const pill = page.getByText('Click to enable sound')
-  const gate = page.getByRole('button', { name: /Tap to turn on sound/ })
+  const gate = page.getByRole('status').filter({ hasText: /Tap anywhere to turn on sound/ })
   await expect(pill).toBeAttached()
-  await expect(gate).toBeVisible() // the sidebar hint is icon-only on a phone, so the button says it
+  await expect(gate).toBeVisible() // the sidebar hint is icon-only on a phone, so this label says it
   await page.locator('.lesson-card').first().tap()
   await expect(pill).toHaveCount(0, { timeout: 5000 })
   await expect(gate).toHaveCount(0)
@@ -24,4 +24,15 @@ test('phone: a start attempt without permission does not block later taps', asyn
   await page.waitForTimeout(300)
   await page.locator('.lesson-card').first().tap()
   await expect(page.getByText('Click to enable sound')).toHaveCount(0, { timeout: 5000 })
+})
+
+test('phone: the first touch on a key plays it (the sound prompt lets touches through)', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('pianoapp.v1.settings', JSON.stringify({ onboarded: true })))
+  await page.goto('/')
+  const gate = page.getByRole('status').filter({ hasText: /Tap anywhere to turn on sound/ })
+  await expect(gate).toBeVisible()
+  const box = (await gate.boundingBox())!
+  // The prompt sits over the bottom of the screen, where the drawn keys are: a touch there must reach what is below.
+  const below = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest('.sound-gate') === null, { x: box.x + box.width / 2, y: box.y + box.height / 2 })
+  expect(below).toBe(true)
 })

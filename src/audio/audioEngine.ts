@@ -192,7 +192,11 @@ class AudioEngine {
    * Ask the browser to run the audio clock. Called from every gesture until it runs: on phones a touch only counts
    * as a gesture when the finger lifts, and a phone can suspend audio again (screen lock, a call).
    */
-  resume() { const c = this.ctx; if (c.state !== 'running') void c.resume().catch((err) => { this.lastError = `resume: ${err}` }) }
+  resume() {
+    const c = this.ctx
+    // NotAllowed only means "not a gesture yet" (a finger landing); the lift that follows starts the sound.
+    if (c.state !== 'running') void c.resume().catch((err) => { if (err?.name !== 'NotAllowedError') this.lastError = `resume: ${err}` })
+  }
   /** One line for the status readout: is the clock running, at what rate and latency, and is the piano in. */
   status() {
     if (!this.started) return 'Not started – tap the screen once'
@@ -235,8 +239,11 @@ class AudioEngine {
   private makeChain(): Chain {
     // Gentle bus compression, then a limiter, so stacked effects and drums never clip.
     // Not Tone.Limiter: it keeps the browser's 30 dB soft knee, so a signal 12 dB over came out only 1.5 dB lower.
-    const limiter = new Tone.Compressor({ threshold: -1, ratio: 20, knee: 0, attack: 0.003, release: 0.1 }).toDestination()
-    this.out = limiter
+    // Even hard-kneed, the browser's compressor lets fast peaks through (a loud chord reached 1.03-1.29, clipping
+    // harshly), so a soft clipper ends the chain: straight up to 0.8, then rounded off below 1.0.
+    const clip = new Tone.WaveShaper((x) => Math.sign(x) * (Math.abs(x) <= 0.8 ? Math.abs(x) : 0.8 + 0.2 * Math.tanh((Math.abs(x) - 0.8) / 0.2)), 2049).toDestination()
+    const limiter = new Tone.Compressor({ threshold: -1, ratio: 20, knee: 0, attack: 0.003, release: 0.1 }).connect(clip)
+    this.out = clip
     const input = new Tone.Gain()
     const filter = new Tone.Filter({ frequency: 20000, type: 'lowpass', rolloff: -12, Q: 0.7 })
     if (this.light) {
@@ -244,9 +251,10 @@ class AudioEngine {
       // or not (measured with nothing playing, % of a PC's audio thread: phaser 3.7, widener 3.3, chorus and
       // tremolo 1.9 each), and a budget phone is several times slower.
       // A piano note peaks near -15 dB and its ring falls to -40 dB within a second, which a phone speaker drops:
-      // squeeze the range (the browser's compressor adds ~12 dB make-up gain itself) and add 6 dB more, so held
-      // notes stay audible; the limiter catches chords.
-      const phone = new Tone.Compressor({ threshold: -30, ratio: 3, knee: 10, attack: 0.005, release: 0.3 }).connect(new Tone.Gain(2).connect(limiter))
+      // squeeze the range gently (the browser's compressor adds make-up gain itself) and add 8 dB, so held notes stay
+      // audible. Measured offline against the earlier 3:1, 5 ms / 0.3 s setting: ringing notes duck 3.7 dB instead
+      // of 9 when a new note hits (no pumping), and the 30 ms attack keeps the hammer's strike (+9.4 dB vs +6.6).
+      const phone = new Tone.Compressor({ threshold: -24, ratio: 2, knee: 12, attack: 0.03, release: 1 }).connect(new Tone.Gain(2.5).connect(limiter)) // release: 1 s is the maximum
       const keysVol = new Tone.Volume(0).connect(phone), drumsVol = new Tone.Volume(0).connect(phone)
       input.connect(filter); filter.connect(keysVol)
       return { input, filter, keysVol, drumsVol, fx: null }
@@ -456,12 +464,28 @@ class AudioEngine {
   /** The bansuri has a gentle vibrato of its own, like a breath; the mod strip adds to it. */
   private applyVibrato() { if (this.vibrato) this.vibrato.depth.value = (this.inst === 'bansuri' ? 0.05 : 0) + this.mod * 0.3 }
 
+  /**
+   * Phones: fetch and decode the piano as soon as the page opens (decoding needs no tap; only playing does), so the
+   * first notes are the piano, not the stand-in synth. Middle C outwards, one decode at a time (each full recording
+   * is ~5 MB decoded), in an offline context that no later context swap can close.
+   */
+  preloadPiano() {
+    if (this.pianoJobs || !lightEngine()) return
+    try {
+      const decoder = new OfflineAudioContext(2, 1, Tone.getContext().sampleRate)
+      let prev: Promise<unknown> = Promise.resolve()
+      this.pianoJobs = [...PIANO_SAMPLES].sort((a, b) => Math.abs(a.midi - 60) - Math.abs(b.midi - 60)).map(({ note, file }) => {
+        const data = fetch(PIANO_URL + file).then((r) => r.arrayBuffer())
+        const job = Promise.all([data, prev]).then(([d]) => decoder.decodeAudioData(d)).then((b) => [note, trimTail(decoder, b)] as const)
+        prev = job.catch(() => {})
+        return job
+      })
+      for (const j of this.pianoJobs) j.catch(() => {}) // reported once the engine waits on them, not as unhandled
+    } catch { /* no offline decoding here: makePiano falls back to the synth piano */ }
+  }
+  private pianoJobs: Promise<readonly [string, AudioBuffer]>[] | null = null
+
   private makePiano(): Voice {
-    const urls: Record<string, string> = {}
-    for (let o = 1; o <= 7; o++) for (const n of ['C', 'Ds', 'Fs', 'A']) urls[`${n.replace('s', '#')}${o}`] = `${n}${o}.mp3`
-    urls.A0 = 'A0.mp3'
-    urls.C8 = 'C8.mp3'
-    const baseUrl = `${import.meta.env.BASE_URL}samples/piano/`
     const failed = () => {
       // Missing samples: fall back to a light synth so the app still makes sound.
       this.pianoFailed = true
@@ -469,14 +493,20 @@ class AudioEngine {
       this.voices.set('piano', v)
       this.applyVoice('piano', v)
     }
-    if (!this.light) return new Tone.Sampler({ urls, baseUrl, release: 0.9, onload: () => { this.pianoLoaded = true }, onerror: failed }).connect(this.chain!.input)
-    // Phones: the 30 full recordings decode to 162 MB. Decode one at a time and keep 4 s in mono (about 23 MB):
-    // a phone speaker is mono and can't play the quiet tail anyway.
+    if (!this.light) {
+      const urls = Object.fromEntries(PIANO_SAMPLES.map((p) => [p.note, p.file]))
+      return new Tone.Sampler({ urls, baseUrl: PIANO_URL, release: 0.9, onload: () => { this.pianoLoaded = true }, onerror: failed }).connect(this.chain!.input)
+    }
     const s = new Tone.Sampler({ release: 0.9 }).connect(this.chain!.input)
+    this.preloadPiano()
     void (async () => {
       try {
-        const files = await Promise.all(Object.entries(urls).map(async ([note, f]) => [note, await (await fetch(baseUrl + f)).arrayBuffer()] as const))
-        for (const [note, data] of files) s.add(note as Tone.Unit.Note, shorten(this.ctx, await this.ctx.decodeAudioData(data), 4))
+        if (!this.pianoJobs) throw new Error('piano not loadable')
+        for (const [i, job] of this.pianoJobs.entries()) {
+          const [note, b] = await job
+          s.add(note as Tone.Unit.Note, b)
+          if (i === 11) this.pianoLoaded = true // 12 recordings from middle C out cover the MiniLab's range: play them
+        }
         this.pianoLoaded = true
       } catch { failed() }
     })()
@@ -575,16 +605,30 @@ class AudioEngine {
   get outputLatency() { return (this.ctx.outputLatency || 0) + (this.ctx.baseLatency || 0) }
 }
 
-/** The first `sec` seconds of a recording as one (mono) channel, faded out over its last second if cut. */
-export function shorten(ctx: BaseAudioContext, b: AudioBuffer, sec: number) {
-  const n = Math.min(b.length, Math.round(sec * b.sampleRate)), fade = Math.min(n, b.sampleRate)
-  const out = ctx.createBuffer(1, n, b.sampleRate), d = out.getChannelData(0)
-  // A block copy, one add per extra channel, then one scaling pass (no division per sample): 30 notes load on a phone.
-  d.set(b.getChannelData(0).subarray(0, n))
-  for (let ch = 1; ch < b.numberOfChannels; ch++) { const x = b.getChannelData(ch); for (let i = 0; i < n; i++) d[i] += x[i] }
-  const k = 1 / b.numberOfChannels, f0 = n < b.length ? n - fade : n
-  if (k !== 1) for (let i = 0; i < f0; i++) d[i] *= k
-  for (let i = f0; i < n; i++) d[i] *= k * (n - i) / fade
+/** Salamander grand piano (CC-BY 3.0): every minor third from A0 to C8; the sampler pitches the notes between. */
+const PIANO_URL = `${import.meta.env.BASE_URL}samples/piano/`
+const PIANO_SAMPLES = [
+  { note: 'A0', file: 'A0.mp3', midi: 21 },
+  ...[1, 2, 3, 4, 5, 6, 7].flatMap((o) => (['C', 'Ds', 'Fs', 'A'] as const).map((n, i) => ({ note: `${n.replace('s', '#')}${o}`, file: `${n}${o}.mp3`, midi: 12 * (o + 1) + [0, 3, 6, 9][i] }))),
+  { note: 'C8', file: 'C8.mp3', midi: 108 },
+]
+
+/**
+ * A recording kept until it has faded `floorDb` below its strike (at least 2.5 s, at most `maxSec`), with a one-second
+ * fade where it is cut, in stereo as recorded. Measured: notes take 8-20 s to fade 45 dB, and the phone's old fixed
+ * 4 s cut was audible on held notes; summing the channels to mono cancelled 1.4-4 dB (the two mics are far apart).
+ */
+export function trimTail(ctx: BaseAudioContext, b: AudioBuffer, floorDb = -45, maxSec = 10) {
+  const sr = b.sampleRate, chs = Array.from({ length: b.numberOfChannels }, (_, c) => b.getChannelData(c))
+  let peak = 0 // a piano's loudest moment is its strike, in the first second
+  for (const x of chs) for (let i = 0, m = Math.min(x.length, sr); i < m; i++) { const a = Math.abs(x[i]); if (a > peak) peak = a }
+  const floor = peak * 10 ** (floorDb / 20)
+  let last = 0
+  for (const x of chs) for (let i = x.length - 1; i > last; i--) if (Math.abs(x[i]) > floor) { last = i; break }
+  const n = Math.min(b.length, Math.max(Math.round(2.5 * sr), last + 1), Math.round(maxSec * sr))
+  if (n === b.length) return b
+  const out = ctx.createBuffer(chs.length, n, sr), fade = Math.min(n, sr)
+  chs.forEach((x, c) => { const d = out.getChannelData(c); d.set(x.subarray(0, n)); for (let i = n - fade; i < n; i++) d[i] *= (n - i) / fade })
   return out
 }
 

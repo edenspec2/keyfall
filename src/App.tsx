@@ -66,16 +66,18 @@ export default function App() {
   useEffect(() => {
     document.documentElement.classList.toggle('vt', !!document.startViewTransition)
     initLiveInput()
+    audio.preloadPiano()
     // Returning users: reconnect MIDI silently (Chrome remembers the permission).
     if (settings.get().onboarded) void midi.connect()
   }, [])
 
   // Browsers only allow audio after a gesture. These are the events they accept as one (a touch counts when the
-  // finger lifts, not when it lands), and we keep listening: a phone can suspend audio again later.
+  // finger lifts, not when it lands), and we keep listening: a phone can suspend audio again later. pointerdown
+  // only builds the engine: the very first tapped key sounds when the finger lifts instead of being dropped.
   const [needTap, setNeedTap] = useState(false)
   useEffect(() => {
     const go = () => { if (!audio.running) void audio.start().then(() => audio.setVolume(settings.get().volume)) }
-    const events = ['pointerup', 'touchend', 'click', 'keydown'] as const
+    const events = ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown'] as const
     for (const e of events) window.addEventListener(e, go, true)
     const poll = setInterval(() => { const on = audio.running; setSoundOn(on); if (on) setNeedTap(false) }, 400)
     // Playing the MiniLab is not a gesture: if sound is off, say so instead of staying silent.
@@ -133,7 +135,9 @@ export default function App() {
         <SoundPanel compact />
       </aside>
       <KnobReadout />
-      {!soundOn && <button className={`sound-gate${needTap ? ' show' : ''}`} onClick={() => void audio.start()}>🔇 Tap to turn on sound</button>}
+      {/* A label touches pass through, not a button: on a phone it sat over the keys, so the first touch on a key
+          turned the sound on but never reached the key. Any tap starts the sound (the gesture listeners above). */}
+      {!soundOn && <div className={`sound-gate${needTap ? ' show' : ''}`} role="status">🔇 Tap anywhere to turn on sound</div>}
     </div>
   )
 }
