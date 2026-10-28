@@ -8,6 +8,7 @@ import { parseMidiFile, toMidiFile } from '../music/midiFile'
 import { currentDrums, PAD_PITCH } from '../music/drums'
 import { isBlack, noteNameOct, pc, scalePcs } from '../music/theory'
 import type { Lesson, NoteEvent } from '../music/types'
+import { JamCoach, TOUR, type TourCtx } from './JamTour'
 import { draft, library, persisted, settings, sound, useStore, type Composition, type Track } from '../store/store'
 
 const uid = () => Math.random().toString(36).slice(2, 10)
@@ -63,6 +64,11 @@ export function Create() {
   const [teach, setTeach] = useState<JamAction | null>(null)
   const teaching = useRef<JamAction | null>(null)
   teaching.current = teach
+  // Guided jam tour: the step shown, and keys/pads played since it began (each step checks what it needs).
+  const [tour, setTour] = useState<number | null>(null)
+  const [heard, setHeard] = useState(0)
+  const touring = useRef(false)
+  touring.current = tour !== null
   const [comp, setCompRaw] = useState<Composition>(() => draft.get().comp ?? (lib.items[0] ? structuredClone(lib.items[0]) : newComposition()))
   const [active, setActive] = useState(0)
   const [sel, setSel] = useState<number | null>(null)
@@ -143,6 +149,7 @@ export function Create() {
       if (e.type === 'on' && control({ channel: e.channel, note: e.pitch })) { held.add(e.pitch); return }
       if (e.type === 'pad' && control({ channel: e.channel, pad: e.pad })) return
       if (e.type === 'off' && held.delete(e.pitch)) return
+      if ((e.type === 'on' || e.type === 'pad') && touring.current) setHeard((h) => h + 1)
       if (rec.current && sess.current?.state === 'playing') rec.current.input(e)
     })
     return () => { offCC(); offNotes() }
@@ -291,6 +298,16 @@ export function Create() {
   }
 
   const busy = state === 'playing' || state === 'recording'
+
+  // Each tour step starts from a snapshot, then finishes itself once the player has done what it asks.
+  const tourStart = useRef<TourCtx['start']>({ instrument: st.instrument, tracks: 0, heard: 0, loop: false })
+  useEffect(() => { tourStart.current = { instrument: settings.get().instrument, tracks: comp.tracks.length, heard, loop: jam.get().loop } }, [tour]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (tour === null || tour >= TOUR.length) return
+    const c: TourCtx = { instrument: st.instrument, state, loop: jm.loop, tracks: comp.tracks.length, heard, taught: !!jm.keys.loop, start: tourStart.current }
+    if (TOUR[tour].done(c)) setTour(tour + 1)
+  })
+  const startTour = () => { stop(); jam.set({ loop: false }); setHeard(0); setTour(0) }
   const discardOk = () => !(dirty || rec.current) || confirm(`Discard the unsaved changes to "${comp.name}"?`)
   return (
     <div className="page" style={{ maxWidth: 1400 }}>
@@ -325,10 +342,10 @@ export function Create() {
       )}
 
       <div className="card row" style={{ gap: 14 }}>
-        <button className={`btn ${state === 'recording' ? 'on' : ''}`} style={{ color: 'var(--bad)' }} onClick={() => (state === 'recording' ? stop() : void play(true))} title="Record onto the selected track (other tracks play along)">● {state === 'recording' ? 'Stop recording' : 'Record'}</button>
-        <button className="btn primary" onClick={() => (busy ? stop() : void play(false))}>{busy ? '■ Stop' : '▶ Play'}</button>
-        <button className={`btn ${jm.loop ? 'on' : ''}`} onClick={toggleLoop} aria-pressed={jm.loop} title="Repeat the song round and round, so you can play along or record more layers on top">🔁 Loop {jm.loop ? 'on' : 'off'}</button>
-        <label className="row" style={{ gap: 6 }} title="The sound your keyboard plays right now. Each track keeps its own sound.">You play
+        <button data-tour="record" className={`btn ${state === 'recording' ? 'on' : ''}`} style={{ color: 'var(--bad)' }} onClick={() => (state === 'recording' ? stop() : void play(true))} title="Record onto the selected track (other tracks play along)">● {state === 'recording' ? 'Stop recording' : 'Record'}</button>
+        <button data-tour="play" className="btn primary" onClick={() => (busy ? stop() : void play(false))}>{busy ? '■ Stop' : '▶ Play'}</button>
+        <button data-tour="loop" className={`btn ${jm.loop ? 'on' : ''}`} onClick={toggleLoop} aria-pressed={jm.loop} title="Repeat the song round and round, so you can play along or record more layers on top">🔁 Loop {jm.loop ? 'on' : 'off'}</button>
+        <label data-tour="you-play" className="row" style={{ gap: 6 }} title="The sound your keyboard plays right now. Each track keeps its own sound.">You play
           <select value={st.instrument} onChange={(e) => settings.set({ instrument: e.target.value as InstrumentId })} aria-label="Your live sound">
             {INSTRUMENTS.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
           </select>
@@ -352,6 +369,7 @@ export function Create() {
 
       <details className="card" open style={{ padding: 14 }}>
         <summary style={{ cursor: 'pointer' }}><b>🎛 Jam: loop a part, play over it</b> <span className="sub">– how to layer sounds, step by step</span></summary>
+        <button className="btn primary small" style={{ marginTop: 10 }} onClick={startTour} disabled={tour !== null}>▶ Show me step by step (2 minutes)</button>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 20, marginTop: 10 }}>
           <ol className="sub" style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 6, fontSize: '0.9rem' }}>
               <li>Pick a sound under <b>You play</b> (try Soft strings).</li>
@@ -369,7 +387,7 @@ export function Create() {
                 <div key={a} className="row" style={{ gap: 6, justifyContent: 'space-between', fontSize: '0.85rem' }}>
                   <span>{JAM_LABELS[a]}<br /><span className="sub" style={{ fontSize: '0.75rem' }}>{teach === a ? 'Press it now…' : b ? bindingName(b) : 'not set'}</span></span>
                   <span className="row" style={{ gap: 4 }}>
-                    <button className={`btn small ${teach === a ? 'on' : ''}`} onClick={() => setTeach(teach === a ? null : a)}>{teach === a ? 'Cancel' : 'Teach'}</button>
+                    <button data-tour={`teach-${a}`} className={`btn small ${teach === a ? 'on' : ''}`} onClick={() => setTeach(teach === a ? null : a)}>{teach === a ? 'Cancel' : 'Teach'}</button>
                     {b && <button className="btn small" aria-label={`Forget the ${JAM_LABELS[a]} button`} onClick={() => { const keys = { ...jm.keys }; delete keys[a]; jam.set({ keys }) }}>✕</button>}
                   </span>
                 </div>
@@ -402,7 +420,7 @@ export function Create() {
             </div>
           ))}
           <div className="row" style={{ gap: 6 }}>
-            <button className="btn small" onClick={() => { setComp({ ...comp, tracks: [...comp.tracks, { id: uid(), name: `Track ${comp.tracks.length + 1}`, instrument: 'piano', notes: [] }] }); setActive(comp.tracks.length) }}>+ Add track</button>
+            <button data-tour="add-track" className="btn small" onClick={() => { setComp({ ...comp, tracks: [...comp.tracks, { id: uid(), name: `Track ${comp.tracks.length + 1}`, instrument: 'piano', notes: [] }] }); setActive(comp.tracks.length) }}>+ Add track</button>
             {!comp.tracks.some((t) => t.drums) && <button className="btn small" onClick={() => { setComp({ ...comp, tracks: [...comp.tracks, { id: uid(), name: 'Drums', instrument: 'piano', notes: [], drums: true }] }); setActive(comp.tracks.length) }}>+ Drums</button>}
           </div>
           <p className="sub" style={{ fontSize: '0.8rem' }}>While recording, the pads (or keys <span className="kbd">1</span> to <span className="kbd">8</span>) always go to the drum track and the keys to the selected piano track. Play a beat and a melody in one take, or layer them.</p>
@@ -457,6 +475,7 @@ export function Create() {
           </div>
         </div>
       </div>
+      {tour !== null && <JamCoach step={tour} onStep={setTour} onEnd={() => setTour(null)} />}
     </div>
   )
 }

@@ -1,0 +1,9 @@
+/* Guided jam tour: a coach card in the corner and a pulsing ring on the control to press. */
+.tour-coach {
+  position: fixed; right: max(16px, env(safe-area-inset-right)); bottom: max(16px, env(safe-area-inset-bottom)); z-index: 45;
+  width: min(360px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 10px; padding: 16px;
+  box-shadow: var(--shadow-3); animation: drop-in var(--dur-base) var(--ease-spring);
+}
+.tour-target { position: relative; z-index: 2; box-shadow: var(--ring), var(--shadow-accent) !important; animation: tour-pulse 1.4s ease-in-out infinite; border-radius: var(--radius-sm); }
+@keyframes tour-pulse { 50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--accent) 35%, transparent), var(--shadow-accent); } }
+@media (prefers-reduced-motion: reduce) { .tour-target { animation: none; } }
