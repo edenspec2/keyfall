@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { audio } from '../audio/audioEngine'
+import { audio, INSTRUMENTS, type InstrumentId } from '../audio/audioEngine'
 import { quantize, Recorder } from '../engine/recorder'
 import { Session, type SessionState } from '../engine/session'
 import { midi } from '../midi/midiInput'
@@ -8,12 +8,20 @@ import { parseMidiFile, toMidiFile } from '../music/midiFile'
 import { currentDrums, PAD_PITCH } from '../music/drums'
 import { isBlack, noteNameOct, pc, scalePcs } from '../music/theory'
 import type { Lesson, NoteEvent } from '../music/types'
-import { draft, library, settings, sound, useStore, type Composition, type Track } from '../store/store'
+import { draft, library, persisted, settings, sound, useStore, type Composition, type Track } from '../store/store'
 
 const uid = () => Math.random().toString(36).slice(2, 10)
 const TRACK_COLORS = ['#0ea5e9', '#f97316', '#8b5cf6', '#10b981', '#f43f5e'] // saturated enough for both themes
 const GRIDS = [{ v: 1, l: '1/4' }, { v: 0.5, l: '1/8' }, { v: 0.25, l: '1/16' }, { v: 1 / 3, l: '1/8 triplet' }]
 const ROW = 14, KEYW = 52
+
+// Jam: Loop repeats the song so you can play over it; three actions can be taught to buttons on the MIDI keyboard.
+export type JamAction = 'play' | 'record' | 'loop'
+export type Binding = { channel: number; cc?: number; note?: number; pad?: number }
+const JAM_LABELS: Record<JamAction, string> = { play: '▶ Play / stop', record: '● Record / stop', loop: '🔁 Loop on / off' }
+export const jam = persisted('jam', { loop: false, keys: {} as Partial<Record<JamAction, Binding>> })
+const sameControl = (a: Binding, b: Binding) => a.channel === b.channel && a.cc === b.cc && a.note === b.note && a.pad === b.pad
+const bindingName = (b: Binding) => `${b.cc !== undefined ? `CC ${b.cc}` : b.pad !== undefined ? `Pad ${b.pad + 1}` : noteNameOct(b.note!)} · ch ${b.channel}`
 
 export const newComposition = (): Composition => ({
   id: uid(), name: 'Untitled idea', bpm: 90, timeSig: [4, 4], updated: Date.now(),
@@ -23,14 +31,16 @@ export const newComposition = (): Composition => ({
 /**
  * Put a recorded take into the composition: pad hits go to the drum track (created if needed),
  * key notes to the selected track, or the first melodic track if the drum track is selected.
+ * A track's first take gives it the sound it was played with (`live`), so it plays back the way it was heard.
  */
-export function mergeTake(c: Composition, active: number, take: NoteEvent[]): Composition {
+export function mergeTake(c: Composition, active: number, take: NoteEvent[], live: InstrumentId = 'piano'): Composition {
   const hits = take.filter((n) => n.drum !== undefined), keys = take.filter((n) => n.drum === undefined)
   let tracks = [...c.tracks]
   const add = (i: number, notes: NoteEvent[]) => { tracks[i] = { ...tracks[i], notes: [...tracks[i].notes, ...notes].sort((a, b) => a.start - b.start) } }
   if (keys.length) {
     let i = tracks[active] && !tracks[active].drums ? active : tracks.findIndex((t) => !t.drums)
-    if (i < 0) { tracks = [...tracks, { id: uid(), name: 'Piano', instrument: 'piano', notes: [] }]; i = tracks.length - 1 }
+    if (i < 0) { tracks = [...tracks, { id: uid(), name: 'Piano', instrument: live, notes: [] }]; i = tracks.length - 1 }
+    if (!tracks[i].notes.length) tracks[i] = { ...tracks[i], instrument: live }
     add(i, keys)
   }
   if (hits.length) {
@@ -49,6 +59,10 @@ function asLesson(c: Composition, notes: NoteEvent[], countIn: number): Lesson {
 export function Create() {
   const st = useStore(settings)
   const lib = useStore(library)
+  const jm = useStore(jam)
+  const [teach, setTeach] = useState<JamAction | null>(null)
+  const teaching = useRef<JamAction | null>(null)
+  teaching.current = teach
   const [comp, setCompRaw] = useState<Composition>(() => draft.get().comp ?? (lib.items[0] ? structuredClone(lib.items[0]) : newComposition()))
   const [active, setActive] = useState(0)
   const [sel, setSel] = useState<number | null>(null)
@@ -78,7 +92,7 @@ export function Create() {
     if (rec.current) {
       const take = rec.current.stop(performance.now())
       rec.current = null
-      if (take.length) setComp(mergeTake(comp, active, take))
+      if (take.length) setComp(mergeTake(comp, active, take, settings.get().instrument))
     }
     s.onState = undefined
     s.pause(); audio.panic()
@@ -88,9 +102,11 @@ export function Create() {
   const play = async (record: boolean) => {
     stop()
     await audio.start(); audio.setVolume(st.volume)
-    const notes = comp.tracks.filter((t) => !t.muted).flatMap((t) => t.notes)
+    // Each track plays with its own sound; what you play live uses the "You play" sound.
+    const notes = comp.tracks.filter((t) => !t.muted).flatMap((t) => (t.drums ? t.notes : t.notes.map((n) => ({ ...n, instrument: t.instrument }))))
     const s = new Session(asLesson(comp, notes, record ? comp.timeSig[0] : 0), {
       mode: 'watch', hands: 'R', bpm: comp.bpm, metronome: st.metronome || record, loop: null, calibration: st.calibrationMs / 1000, endless: record,
+      repeat: jam.get().loop,
     }, audio)
     s.onState = (x) => { setState(record && x === 'playing' ? 'recording' : x); if (x === 'done') sess.current = null }
     sess.current = s
@@ -98,7 +114,39 @@ export function Create() {
     s.start()
     if (record) setState('recording')
   }
-  useEffect(() => midi.on((e) => { if (rec.current && sess.current?.state === 'playing') rec.current.input(e) }), [])
+  const toggleLoop = () => { const loop = !jam.get().loop; jam.set({ loop }); if (sess.current) sess.current.opts.repeat = loop }
+  // Latest handlers for taught keyboard buttons (the MIDI listener below is set up once).
+  const actions = useRef<Record<JamAction, () => void>>({ play: () => {}, record: () => {}, loop: () => {} })
+  actions.current = {
+    play: () => (sess.current ? stop() : void play(false)),
+    record: () => (rec.current ? stop() : void play(true)),
+    loop: toggleLoop,
+  }
+  useEffect(() => {
+    /** A keyboard control was pressed: learn it, or run the action it was taught. True = it was a jam control. */
+    const control = (b: Binding) => {
+      const t = teaching.current
+      if (t) { jam.set({ keys: { ...jam.get().keys, [t]: b } }); setTeach(null); return true }
+      const a = (Object.keys(JAM_LABELS) as JamAction[]).find((k) => { const x = jam.get().keys[k]; return x && sameControl(x, b) })
+      if (a) actions.current[a]()
+      return !!a
+    }
+    const held = new Set<number>() // keys used as controls: their note-off must not reach the recorder either
+    const lastCC = new Map<string, number>()
+    const offCC = midi.onCC((e) => {
+      const k = `${e.channel}:${e.cc}`, was = lastCC.get(k) ?? 0
+      lastCC.set(k, e.raw)
+      if (e.raw > 0 && was === 0) control({ channel: e.channel, cc: e.cc }) // a press, not every step of a turning knob
+    })
+    const offNotes = midi.on((e) => {
+      // shortcut: a key or pad taught as a control still makes its sound (live.ts plays it first); fine for a spare pad or key.
+      if (e.type === 'on' && control({ channel: e.channel, note: e.pitch })) { held.add(e.pitch); return }
+      if (e.type === 'pad' && control({ channel: e.channel, pad: e.pad })) return
+      if (e.type === 'off' && held.delete(e.pitch)) return
+      if (rec.current && sess.current?.state === 'playing') rec.current.input(e)
+    })
+    return () => { offCC(); offNotes() }
+  }, [])
 
   // Keep the open composition as a draft; on leaving the page, finish a running take into it.
   const live = useRef({ comp, active })
@@ -110,7 +158,7 @@ export function Create() {
     if (!rec.current) return
     const take = rec.current.stop(performance.now())
     const { comp: c, active: a } = live.current
-    if (take.length) draft.set({ dirty: true, comp: mergeTake(c, a, take) })
+    if (take.length) draft.set({ dirty: true, comp: mergeTake(c, a, take, settings.get().instrument) })
   }, [])
 
   // Playhead + session clock, outside React.
@@ -279,6 +327,12 @@ export function Create() {
       <div className="card row" style={{ gap: 14 }}>
         <button className={`btn ${state === 'recording' ? 'on' : ''}`} style={{ color: 'var(--bad)' }} onClick={() => (state === 'recording' ? stop() : void play(true))} title="Record onto the selected track (other tracks play along)">● {state === 'recording' ? 'Stop recording' : 'Record'}</button>
         <button className="btn primary" onClick={() => (busy ? stop() : void play(false))}>{busy ? '■ Stop' : '▶ Play'}</button>
+        <button className={`btn ${jm.loop ? 'on' : ''}`} onClick={toggleLoop} aria-pressed={jm.loop} title="Repeat the song round and round, so you can play along or record more layers on top">🔁 Loop {jm.loop ? 'on' : 'off'}</button>
+        <label className="row" style={{ gap: 6 }} title="The sound your keyboard plays right now. Each track keeps its own sound.">You play
+          <select value={st.instrument} onChange={(e) => settings.set({ instrument: e.target.value as InstrumentId })} aria-label="Your live sound">
+            {INSTRUMENTS.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
+          </select>
+        </label>
         <label className="row" style={{ gap: 6 }}>Tempo <input type="number" min={30} max={240} value={comp.bpm} onChange={(e) => setComp({ ...comp, bpm: Math.max(30, Math.min(240, +e.target.value || 90)) }, false)} style={{ width: 70 }} disabled={busy} /> BPM</label>
         <select value={comp.timeSig[0]} onChange={(e) => setComp({ ...comp, timeSig: [+e.target.value, 4] })} aria-label="Time signature" disabled={busy}>
           {[2, 3, 4, 6].map((n) => <option key={n} value={n}>{n}/4</option>)}
@@ -296,6 +350,36 @@ export function Create() {
         )}
       </div>
 
+      <details className="card" open style={{ padding: 14 }}>
+        <summary style={{ cursor: 'pointer' }}><b>🎛 Jam: loop a part, play over it</b> <span className="sub">– how to layer sounds, step by step</span></summary>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 20, marginTop: 10 }}>
+          <ol className="sub" style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 6, fontSize: '0.9rem' }}>
+              <li>Pick a sound under <b>You play</b> (try Soft strings).</li>
+              <li>Press <b>● Record</b>, wait for the count-in clicks, then play a few bars of chords on your keyboard, or a beat on the pads. Press <b>Stop</b>. The track keeps that sound.</li>
+              <li>Turn <b>🔁 Loop</b> on and press <b>▶ Play</b>: your part goes round and round.</li>
+              <li>Switch <b>You play</b> to another sound (try Synth lead) and play along on your keys.</li>
+              <li>To keep a layer: press <b>+ Add track</b>, then <b>● Record</b>. Everything you play while it loops is added on top. Press <b>Stop</b> to keep it.</li>
+            </ol>
+          <div className="col" style={{ gap: 6 }}>
+            <b style={{ fontSize: '0.85rem', marginTop: 4 }}>Control it from your keyboard</b>
+            <p className="sub" style={{ fontSize: '0.8rem' }}>Press <b>Teach</b>, then the button you want on your MIDI keyboard. On a MiniLab 3, try holding <b>Shift</b> and pressing a pad. If nothing happens, that button sends nothing the app can hear: try another (Settings → MIDI keyboard lists what arrives).</p>
+            {(Object.keys(JAM_LABELS) as JamAction[]).map((a) => {
+              const b = jm.keys[a]
+              return (
+                <div key={a} className="row" style={{ gap: 6, justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                  <span>{JAM_LABELS[a]}<br /><span className="sub" style={{ fontSize: '0.75rem' }}>{teach === a ? 'Press it now…' : b ? bindingName(b) : 'not set'}</span></span>
+                  <span className="row" style={{ gap: 4 }}>
+                    <button className={`btn small ${teach === a ? 'on' : ''}`} onClick={() => setTeach(teach === a ? null : a)}>{teach === a ? 'Cancel' : 'Teach'}</button>
+                    {b && <button className="btn small" aria-label={`Forget the ${JAM_LABELS[a]} button`} onClick={() => { const keys = { ...jm.keys }; delete keys[a]; jam.set({ keys }) }}>✕</button>}
+                  </span>
+                </div>
+              )
+            })}
+            <p className="sub" style={{ fontSize: '0.75rem' }}>On the computer: <span className="kbd">Space</span> plays and stops.</p>
+          </div>
+        </div>
+      </details>
+
       <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 14 }}>
         <div className="col">
           {comp.tracks.map((t, i) => (
@@ -304,6 +388,12 @@ export function Create() {
                 <input type="text" value={t.name} onChange={(e) => updateTrack(i, (x) => ({ ...x, name: e.target.value }), false)} style={{ width: 110, padding: '2px 6px' }} aria-label="Track name" />
                 <span className="row" style={{ gap: 4 }}>{t.drums && <span className="sub" title="Drum track: record with the pads">Drums</span>}<span className="dot" style={{ background: TRACK_COLORS[i % 5] }} /></span>
               </div>
+              {!t.drums && (
+                <select value={t.instrument} onClick={(e) => e.stopPropagation()} onChange={(e) => updateTrack(i, (x) => ({ ...x, instrument: e.target.value as InstrumentId }))}
+                  aria-label={`Sound of ${t.name}`} title="This track's sound (heard from the next Play)" style={{ padding: '2px 6px' }}>
+                  {INSTRUMENTS.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
+                </select>
+              )}
               <div className="row" style={{ gap: 6 }}>
                 <button className={`btn small ${t.muted ? 'on' : ''}`} onClick={(e) => { e.stopPropagation(); updateTrack(i, (x) => ({ ...x, muted: !x.muted })) }}>{t.muted ? 'Muted' : 'Mute'}</button>
                 {comp.tracks.length > 1 && <button className="btn small danger" onClick={(e) => { e.stopPropagation(); if (!t.notes.length || confirm(`Delete track "${t.name}"?`)) { setComp({ ...comp, tracks: comp.tracks.filter((_, k) => k !== i) }); setActive(0) } }}>✕</button>}

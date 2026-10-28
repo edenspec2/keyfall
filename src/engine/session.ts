@@ -1,5 +1,6 @@
 import type { InputEvent } from '../midi/midiInput'
 import { PAD_PITCH } from '../music/drums'
+import type { InstrumentId } from '../audio/audioEngine'
 import type { Lesson, NoteEvent, PracticeMode } from '../music/types'
 import { pc } from '../music/theory'
 import { Scorer, type Grade, type Summary } from './scorer'
@@ -8,7 +9,7 @@ import { Transport } from './transport'
 export interface AudioOut {
   now(): number // audio clock, seconds (scheduling)
   heard(perfMs: number): number // audio-clock time audible at a performance.now() instant
-  schedule(pitch: number, time: number, durSec: number, vel?: number): void
+  schedule(pitch: number, time: number, durSec: number, vel?: number, instrument?: InstrumentId): void
   metronome(time: number, accent: boolean): void
   drum?(k: number, time: number, vel: number): void
   panic(): void
@@ -22,6 +23,7 @@ export interface SessionOptions {
   loop: [number, number] | null // beats; Loop mode region
   calibration: number // seconds; manual extra offset (e.g. Bluetooth) on top of the measured output latency
   endless?: boolean // recording: keep running past the last note until stopped
+  repeat?: boolean // Create's Loop: go round the whole piece (whole bars) until stopped
 }
 
 export type SessionState = 'ready' | 'playing' | 'paused' | 'waiting' | 'done'
@@ -90,7 +92,7 @@ export class Session {
   }
 
   get timed() { return this.opts.mode === 'rhythm' || this.opts.mode === 'loop' }
-  get looping() { return this.opts.mode === 'loop' || this.lesson.kind === 'improvise' }
+  get looping() { return this.opts.mode === 'loop' || this.lesson.kind === 'improvise' || (!!this.opts.repeat && this.endBeat > 0) }
   get loopRange(): [number, number] { return this.opts.mode === 'loop' && this.opts.loop ? this.opts.loop : [0, Math.ceil(this.endBeat / this.beatsPerBar) * this.beatsPerBar] }
 
   private newScorer() {
@@ -156,7 +158,7 @@ export class Session {
     // After a stall (background tab, slow frame) skip notes that are already over instead of firing them at once.
     if (at + n.dur * spb < now) return
     if (n.drum !== undefined) this.out.drum?.(n.drum, at, n.vel ?? 100)
-    else this.out.schedule(n.pitch, at, n.dur * spb * 0.95, n.vel ?? 80)
+    else this.out.schedule(n.pitch, at, n.dur * spb * 0.95, n.vel ?? 80, n.instrument)
   }
 
   /** Called every animation frame. */

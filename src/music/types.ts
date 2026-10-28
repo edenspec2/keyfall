@@ -1,6 +1,8 @@
 // Integration contract shared by lessons, engine, renderer, recorder and persistence.
 // All musical time is in BEATS (quarter notes). Seconds only exist inside the transport.
 
+import type { InstrumentId } from '../audio/audioEngine'
+
 export type Hand = 'L' | 'R'
 
 export interface NoteEvent {
@@ -12,6 +14,7 @@ export interface NoteEvent {
   finger?: number // 1 = thumb .. 5 = little finger
   drum?: number // 0–7: a pad/drum hit (Kick, Snare, Closed hat, Open hat, Clap, Low tom, High tom, Crash)
   text?: string // a sung syllable shown on the note (chant lessons)
+  instrument?: InstrumentId // Create: the sound of the track it belongs to; unset = the player's sound
 }
 
 export type PracticeMode = 'watch' | 'wait' | 'rhythm' | 'free' | 'loop'
