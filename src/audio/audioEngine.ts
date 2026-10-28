@@ -636,7 +636,8 @@ class AudioEngine {
 }
 
 /** Salamander grand piano (CC-BY 3.0): every minor third from A0 to C8; the sampler pitches the notes between. */
-const PIANO_URL = `${import.meta.env.BASE_URL}samples/piano/`
+// From this module, not the page: the built module sits in assets/, so this works from any page (the app, welcome/).
+const PIANO_URL = new URL(import.meta.env.DEV ? '/samples/piano/' : '../samples/piano/', import.meta.url).href
 const PIANO_SAMPLES = [
   { note: 'A0', file: 'A0.mp3', midi: 21 },
   ...[1, 2, 3, 4, 5, 6, 7].flatMap((o) => (['C', 'Ds', 'Fs', 'A'] as const).map((n, i) => ({ note: `${n.replace('s', '#')}${o}`, file: `${n}${o}.mp3`, midi: 12 * (o + 1) + [0, 3, 6, 9][i] }))),
