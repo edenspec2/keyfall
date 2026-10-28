@@ -1,78 +1,79 @@
 /* ───────────────────────── Tokens ─────────────────────────
+   Kawaii: "Sakura cream" (light) and "Midnight candy" (dark), rounded Fredoka/Nunito type, plum ink for contrast.
    Light is the default; [data-theme='dark'] swaps the colour tokens. Components only ever use tokens,
    so a new theme is a new block here. Names used by SoundPanel.css are kept. */
 :root {
-  --bg: #f4f5f9;
-  --bg-2: #eceef4;
+  --bg: #fff5f9;
+  --bg-2: #ffecf4;
   --panel: #ffffff;
-  --panel-2: #f7f8fb;
-  --panel-3: #eef0f6;
-  --line: #e4e7ef;
-  --line-strong: #d4d8e3;
+  --panel-2: #fff8fb;
+  --panel-3: #fdeef6;
+  --line: #f7dce9;
+  --line-strong: #efc5d9;
   --hairline: var(--line);
   --hairline-strong: var(--line-strong);
-  --text: #0f172a;
-  --muted: #5a6478;
-  --faint: #98a1b3;
+  --text: #4a2c47;
+  --muted: #85627f;
+  --faint: #c3a4bc;
 
-  --accent: #5b5cf0;
-  --accent-2: #0ea5e9;
-  --accent-ink: #4338ca;
-  --accent-soft: rgba(91, 92, 240, 0.09);
-  --accent-line: rgba(91, 92, 240, 0.3);
-  --grad-accent: linear-gradient(135deg, #6366f1 0%, #4f7cf7 55%, #0ea5e9 100%);
-  --grad-warm: linear-gradient(135deg, #fb923c, #f43f5e);
-  --right: #0ea5e9;
-  --left: #f97316;
-  --ok: #059669;
-  --warn: #d97706;
-  --bad: #dc2626;
-  --star: #f59e0b;
-  --star-off: #d6dae4;
+  --accent: #e8508f;
+  --accent-2: #1b7ab8;
+  --accent-ink: #c2336f;
+  --accent-soft: rgba(255, 111, 168, 0.12);
+  --accent-line: rgba(232, 80, 143, 0.35);
+  --grad-accent: linear-gradient(135deg, #ffb3d6 0%, #dcc5ff 55%, #b5e6ff 100%);
+  --grad-warm: linear-gradient(135deg, #ffc89a, #ff8fbd);
+  --right: #4fb6f0;
+  --left: #ff9a5c;
+  --ok: #16855a;
+  --warn: #b86e00;
+  --bad: #d93c64;
+  --star: #ffb703;
+  --star-off: #f4d8e6;
 
-  --tint: rgba(15, 23, 42, 0.04);
-  --tint-2: rgba(15, 23, 42, 0.07);
+  --tint: rgba(232, 80, 143, 0.05);
+  --tint-2: rgba(232, 80, 143, 0.09);
   --field: #ffffff;
-  --field-inset: inset 0 1px 1px rgba(15, 23, 42, 0.04);
-  --seg-bg: #eaedf3;
+  --field-inset: inset 0 1px 2px rgba(214, 61, 124, 0.07);
+  --seg-bg: #fde6f0;
   --seg-active: #ffffff;
-  --glass: rgba(255, 255, 255, 0.7);
-  --glass-strong: rgba(255, 255, 255, 0.9);
-  --scrim: rgba(232, 236, 245, 0.78);
-  --stage: #f2f4fa;
-  --hud-text: #0f172a;
-  --hud-halo: 0 1px 0 rgba(255, 255, 255, 0.9), 0 0 14px rgba(255, 255, 255, 0.85);
-  --log-bg: #f8f9fc;
+  --glass: rgba(255, 250, 252, 0.74);
+  --glass-strong: rgba(255, 250, 252, 0.92);
+  --scrim: rgba(255, 236, 245, 0.8);
+  --stage: #fff7fb;
+  --hud-text: #4a2c47;
+  --hud-halo: 0 1px 0 rgba(255, 255, 255, 0.95), 0 0 14px rgba(255, 255, 255, 0.9);
+  --log-bg: #fffafc;
   --knob-1: #ffffff;
-  --knob-2: #f1f3f8;
-  --knob-3: #d9dde8;
-  --knob-track: rgba(15, 23, 42, 0.09);
-  --knob-shadow: drop-shadow(0 2px 3px rgba(15, 23, 42, 0.18));
-  --roll-bg: #fbfbfd;
+  --knob-2: #ffeef6;
+  --knob-3: #f3c7dc;
+  --knob-track: rgba(232, 80, 143, 0.13);
+  --knob-shadow: drop-shadow(0 3px 3px rgba(214, 61, 124, 0.22));
+  --roll-bg: #fffbfd;
   --roll-row: #ffffff;
-  --roll-row-alt: #f7f8fb;
-  --roll-black-row: #f1f3f8;
-  --roll-key-row: #f0f1ff;
-  --roll-sep: #eceef4;
-  --roll-c: #d7dbe6;
+  --roll-row-alt: #fff7fb;
+  --roll-black-row: #fdf0f6;
+  --roll-key-row: #fbeefe;
+  --roll-sep: #fbe6ef;
+  --roll-c: #f1c8db;
   --roll-key-white: #ffffff;
-  --roll-key-black: #2a2f40;
-  --roll-key-text: #5a6478;
-  --roll-key-text-black: #c3c8d4;
-  --roll-grid: rgba(15, 23, 42, 0.035);
-  --roll-beat: rgba(15, 23, 42, 0.08);
-  --roll-bar: rgba(15, 23, 42, 0.17);
-  --heat-0: #eceef4;
-  --heat: 91, 92, 240;
+  --roll-key-black: #5b3f6e;
+  --roll-key-text: #85627f;
+  --roll-key-text-black: #e9d6ee;
+  --roll-grid: rgba(232, 80, 143, 0.04);
+  --roll-beat: rgba(232, 80, 143, 0.09);
+  --roll-bar: rgba(150, 70, 130, 0.2);
+  --heat-0: #fbe6ef;
+  --heat: 255, 111, 168;
 
-  --radius: 14px;
-  --radius-sm: 9px;
-  --radius-lg: 20px;
-  --shadow-1: 0 1px 2px rgba(15, 23, 42, 0.05), 0 2px 8px rgba(15, 23, 42, 0.04);
-  --shadow-2: 0 2px 6px rgba(15, 23, 42, 0.06), 0 12px 32px rgba(15, 23, 42, 0.08);
-  --shadow-3: 0 8px 24px rgba(15, 23, 42, 0.10), 0 32px 80px rgba(15, 23, 42, 0.16);
-  --shadow-accent: 0 6px 20px rgba(79, 102, 241, 0.32);
-  --ring: 0 0 0 3px rgba(91, 92, 240, 0.28);
+  --radius: 20px;
+  --radius-sm: 13px;
+  --radius-lg: 28px;
+  --shadow-1: 0 1px 2px rgba(214, 61, 124, 0.06), 0 3px 10px rgba(214, 61, 124, 0.06);
+  --shadow-2: 0 3px 8px rgba(214, 61, 124, 0.08), 0 14px 34px rgba(150, 90, 200, 0.1);
+  --shadow-3: 0 8px 24px rgba(214, 61, 124, 0.12), 0 32px 80px rgba(150, 90, 200, 0.18);
+  --shadow-accent: 0 6px 20px rgba(255, 111, 168, 0.35);
+  --ring: 0 0 0 3px rgba(255, 111, 168, 0.35);
 
   /* Motion */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
@@ -87,8 +88,8 @@
   --dur-page: 300ms;
 
   /* Type */
-  --font-text: -apple-system, 'SF Pro Text', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
-  --font-display: -apple-system, 'SF Pro Display', 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif;
+  --font-text: 'Nunito Variable', 'Nunito', 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'Fredoka Variable', 'Fredoka', 'Nunito Variable', 'Segoe UI', system-ui, sans-serif;
   --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Consolas, monospace;
   --fs-xs: 0.75rem;
   --fs-sm: 0.86rem;
@@ -108,68 +109,68 @@
 }
 
 [data-theme='dark'] {
-  --bg: #090c14;
-  --bg-2: #0e121d;
-  --panel: #131827;
-  --panel-2: #1a2032;
-  --panel-3: #222a3f;
-  --line: #232a3d;
-  --line-strong: #2f3850;
-  --text: #eef1f8;
-  --muted: #98a1b6;
-  --faint: #5d667c;
-  --accent: #818cf8;
-  --accent-2: #38bdf8;
-  --accent-ink: #c7d2fe;
-  --accent-soft: rgba(129, 140, 248, 0.13);
-  --accent-line: rgba(129, 140, 248, 0.38);
-  --grad-accent: linear-gradient(135deg, #6366f1 0%, #4f7cf7 55%, #0ea5e9 100%);
-  --right: #38bdf8;
-  --left: #fb923c;
-  --ok: #34d399;
-  --warn: #fbbf24;
-  --bad: #f87171;
-  --star: #fbbf24;
-  --star-off: #343b50;
-  --tint: rgba(255, 255, 255, 0.04);
-  --tint-2: rgba(255, 255, 255, 0.08);
-  --field: rgba(0, 0, 0, 0.28);
-  --field-inset: inset 0 1px 2px rgba(0, 0, 0, 0.3);
-  --seg-bg: rgba(0, 0, 0, 0.32);
-  --seg-active: #2a3248;
-  --glass: rgba(16, 20, 32, 0.66);
-  --glass-strong: rgba(16, 20, 32, 0.9);
-  --scrim: rgba(5, 7, 12, 0.82);
-  --stage: #0b0f1c;
-  --hud-text: #f4f6fb;
+  --bg: #1a1330;
+  --bg-2: #21183c;
+  --panel: #2a1f47;
+  --panel-2: #322652;
+  --panel-3: #3b2d5f;
+  --line: #3f3166;
+  --line-strong: #52407f;
+  --text: #fdf0fa;
+  --muted: #cdb7da;
+  --faint: #8d79a8;
+  --accent: #ff8ec7;
+  --accent-2: #8fd8ff;
+  --accent-ink: #ffc6e4;
+  --accent-soft: rgba(255, 142, 199, 0.15);
+  --accent-line: rgba(255, 142, 199, 0.42);
+  --grad-accent: linear-gradient(135deg, #ffb3d6 0%, #dcc5ff 55%, #b5e6ff 100%);
+  --right: #8fd8ff;
+  --left: #ffb38a;
+  --ok: #6ee7b7;
+  --warn: #fcd34d;
+  --bad: #ff8aa5;
+  --star: #ffd166;
+  --star-off: #4b3d70;
+  --tint: rgba(255, 200, 235, 0.05);
+  --tint-2: rgba(255, 200, 235, 0.09);
+  --field: rgba(10, 4, 24, 0.3);
+  --field-inset: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+  --seg-bg: rgba(10, 4, 24, 0.35);
+  --seg-active: #45366f;
+  --glass: rgba(30, 21, 54, 0.7);
+  --glass-strong: rgba(30, 21, 54, 0.92);
+  --scrim: rgba(14, 8, 28, 0.82);
+  --stage: #1a1330;
+  --hud-text: #fff4fb;
   --hud-halo: 0 2px 12px rgba(0, 0, 0, 0.6);
-  --log-bg: #06080d;
-  --knob-1: #3a4157;
-  --knob-2: #1f2433;
-  --knob-3: #11141c;
-  --knob-track: rgba(255, 255, 255, 0.08);
+  --log-bg: #140e26;
+  --knob-1: #5a4785;
+  --knob-2: #35295a;
+  --knob-3: #1d1536;
+  --knob-track: rgba(255, 200, 235, 0.12);
   --knob-shadow: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.55));
-  --roll-bg: #080a10;
-  --roll-row: #10131c;
-  --roll-row-alt: #131724;
-  --roll-black-row: #0c0f16;
-  --roll-key-row: #151b2e;
-  --roll-sep: #171b28;
-  --roll-c: #2a3047;
-  --roll-key-white: #d9dce6;
-  --roll-key-black: #1b1e29;
-  --roll-key-text: #222632;
-  --roll-key-text-black: #8a90a0;
-  --roll-grid: rgba(255, 255, 255, 0.03);
-  --roll-beat: rgba(255, 255, 255, 0.07);
-  --roll-bar: rgba(255, 255, 255, 0.16);
-  --heat-0: #171c2a;
-  --heat: 129, 140, 248;
+  --roll-bg: #160f2a;
+  --roll-row: #1d1536;
+  --roll-row-alt: #21183c;
+  --roll-black-row: #181030;
+  --roll-key-row: #2a1f4a;
+  --roll-sep: #251b42;
+  --roll-c: #4a3a78;
+  --roll-key-white: #f6e9f3;
+  --roll-key-black: #2b2045;
+  --roll-key-text: #5a3f58;
+  --roll-key-text-black: #b8a5cc;
+  --roll-grid: rgba(255, 200, 235, 0.035);
+  --roll-beat: rgba(255, 200, 235, 0.08);
+  --roll-bar: rgba(255, 200, 235, 0.18);
+  --heat-0: #2a1f47;
+  --heat: 255, 142, 199;
   --shadow-1: 0 1px 1px rgba(0, 0, 0, 0.25), 0 2px 6px rgba(0, 0, 0, 0.18);
   --shadow-2: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.3);
   --shadow-3: 0 2px 6px rgba(0, 0, 0, 0.3), 0 24px 64px rgba(0, 0, 0, 0.55);
-  --shadow-accent: 0 6px 22px rgba(99, 102, 241, 0.4);
-  --ring: 0 0 0 3px rgba(129, 140, 248, 0.42);
+  --shadow-accent: 0 6px 22px rgba(255, 142, 199, 0.38);
+  --ring: 0 0 0 3px rgba(255, 142, 199, 0.45);
   color-scheme: dark;
 }
 
@@ -602,4 +603,91 @@ html:not(.vt) .main > * { animation: page-in var(--dur-page) var(--ease-out) bot
   html:not(.vt) .main > * { animation-name: fade-in; }
   .drawer { transition: none; }
   .drawer-backdrop { animation: none; }
+}
+
+/* ───────────────────────── Kawaii ─────────────────────────
+   The decoration layer: everything above is layout and tokens; this gives it the soft, bouncy, pastel character.
+   Text on pastel fills is plum (--text), never white, so it stays readable. */
+body {
+  background:
+    radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--accent) 14%, transparent) 1.4px, transparent 1.6px) 0 0 / 26px 26px,
+    radial-gradient(900px 620px at -10% -15%, color-mix(in srgb, #ffb3d6 38%, transparent), transparent 62%),
+    radial-gradient(760px 560px at 105% 110%, color-mix(in srgb, #b5e6ff 34%, transparent), transparent 60%),
+    radial-gradient(620px 460px at 60% -10%, color-mix(in srgb, #dcc5ff 30%, transparent), transparent 60%),
+    var(--bg);
+}
+[data-theme='dark'] body {
+  background:
+    radial-gradient(circle at 1px 1px, rgba(255, 200, 235, 0.07) 1.4px, transparent 1.6px) 0 0 / 26px 26px,
+    radial-gradient(900px 620px at -10% -15%, rgba(255, 142, 199, 0.16), transparent 62%),
+    radial-gradient(760px 560px at 105% 110%, rgba(143, 216, 255, 0.12), transparent 60%),
+    var(--bg);
+}
+h1, h2, h3, .brand { font-weight: 600; letter-spacing: 0; }
+.page-head h1::after { content: ' ♡'; color: var(--accent); font-size: 0.7em; vertical-align: 0.15em; }
+
+/* Sidebar: a soft pastel column, the active page is a pink pill */
+.sidebar { border-right: 2px solid var(--line); }
+.brand { font-size: 1.3rem; color: var(--accent-ink); }
+.nav-btn { border-radius: 999px; font-weight: 650; }
+.nav-indicator { border-radius: 999px; background: linear-gradient(135deg, #ffe0ef, #efe4ff); box-shadow: 0 2px 0 #f2b8d2, 0 0 0 1.5px #f7cfe2 inset; }
+[data-theme='dark'] .nav-indicator { background: linear-gradient(135deg, rgba(255, 142, 199, 0.28), rgba(201, 167, 255, 0.22)); box-shadow: 0 2px 0 rgba(255, 142, 199, 0.35), 0 0 0 1.5px rgba(255, 142, 199, 0.35) inset; }
+
+/* Cards: mochi-soft, thicker pastel rim */
+.card { border-width: 2px; }
+.card:not(.lesson-card) { box-shadow: var(--shadow-1), 0 3px 0 var(--line); }
+
+/* Buttons: candy pills with a pressable bottom edge that squish on click */
+.btn { border-radius: 999px; border-width: 2px; font-weight: 700; padding: 7px 16px; box-shadow: 0 3px 0 var(--line-strong); }
+.btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 0 var(--line-strong); }
+.btn:active:not(:disabled) { transform: translateY(2px) scale(0.98); box-shadow: 0 1px 0 var(--line-strong); }
+.btn.small { padding: 4px 12px; }
+.btn.primary { color: #4a2c47; text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6); box-shadow: 0 3px 0 #e79cc1, var(--shadow-accent); }
+.sound-gate { color: #4a2c47; } /* plum ink: white is unreadable on the pastel gradient */
+.btn.primary:hover:not(:disabled) { box-shadow: 0 4px 0 #e79cc1, var(--shadow-accent); }
+.btn.primary:active:not(:disabled) { box-shadow: 0 1px 0 #e79cc1; }
+.btn.ghost, .btn.ghost:hover:not(:disabled), .btn.ghost:active:not(:disabled) { box-shadow: none; }
+.btn.on { box-shadow: 0 3px 0 var(--accent-line); }
+.seg { border-radius: 999px; border-width: 2px; padding: 3px; }
+.seg button { border-radius: 999px; font-weight: 650; }
+.seg button.active { box-shadow: 0 2px 0 var(--line-strong); }
+select, input[type='number'], input[type='text'] { border-radius: 999px; border-width: 2px; }
+input[type='range']::-webkit-slider-runnable-track { height: 8px; border-radius: 99px; background: linear-gradient(90deg, #ffb3d6, #dcc5ff, #b5e6ff); }
+input[type='range']::-webkit-slider-thumb { width: 20px; height: 20px; margin-top: -6px; background: #ffffff; box-shadow: 0 0 0 2.5px #ff9cc6, 0 3px 6px rgba(214, 61, 124, 0.3); }
+input[type='checkbox'] { border-radius: 7px; border-width: 2px; width: 18px; height: 18px; }
+.pill { border-width: 1.5px; font-weight: 700; }
+.bar { height: 9px; }
+
+/* Learn: flower badges and bouncy cards */
+.stage-badge {
+  border-radius: 46% 54% 52% 48% / 52% 46% 54% 48%; color: #4a2c47; font-weight: 700;
+  box-shadow: 0 3px 0 #e79cc1, var(--shadow-accent);
+}
+.stage-num { color: var(--accent-ink); }
+.lesson-card { border-radius: 24px; }
+.lesson-card::before { width: 6px; border-radius: 0 6px 6px 0; top: 14px; bottom: 14px; }
+.lesson-card.kind-improvise { --kind: #a77bff; }
+.lesson-card:hover { --lift: -6px; }
+.lesson-card.next::after { content: '✦'; opacity: 1; background: none; inset: auto 16px 12px auto; color: var(--accent); font-size: 1.1rem; animation: twinkle 1.8s var(--ease-in-out) infinite; }
+
+/* Stars twinkle, Mochi bobs */
+.stars { text-shadow: 0 1px 0 rgba(214, 120, 0, 0.25); }
+.stars > span:not(.off) { display: inline-block; animation: twinkle 2.6s var(--ease-in-out) infinite; }
+.stars > span:nth-child(2) { animation-delay: 0.3s; }
+.stars > span:nth-child(3) { animation-delay: 0.6s; }
+.mascot { flex: none; overflow: visible; animation: bob 3.2s var(--ease-in-out) infinite; transform-origin: 50% 90%; }
+.mascot-star { animation: hop 0.9s var(--ease-out) 2, bob 3.2s var(--ease-in-out) 1.8s infinite; }
+.empty .mascot { animation: bob 3.6s var(--ease-in-out) infinite; }
+@keyframes twinkle { 0%, 100% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(1.18) rotate(8deg); filter: brightness(1.15); } }
+@keyframes bob { 0%, 100% { transform: translateY(0) scale(1, 1); } 50% { transform: translateY(-2px) scale(1.02, 0.98); } }
+@keyframes hop { 0%, 100% { transform: translateY(0) scale(1, 1); } 30% { transform: translateY(-8px) scale(0.95, 1.06); } 60% { transform: translateY(0) scale(1.06, 0.94); } }
+
+/* Overlays and results: rounder, softer */
+.overlay .card { border-radius: 30px; border-width: 2px; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--accent) 28%, transparent); border-radius: 99px; border: 3px solid transparent; background-clip: padding-box; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mascot, .mascot-star, .stars > span, .lesson-card.next::after { animation: none !important; }
+  .btn:hover:not(:disabled), .btn:active:not(:disabled) { transform: none; }
 }

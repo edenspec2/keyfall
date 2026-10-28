@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import type { Attempt, Feedback } from '../engine/feedback'
 import type { Summary } from '../engine/scorer'
 import type { PracticeMode } from '../music/types'
+import { Mascot } from './Mascot'
 
 export function Stars({ n, of = 3 }: { n: number; of?: number }) {
   return (
@@ -90,7 +91,7 @@ export function Results({ fb, run, onRetry, onNext, onMode, mode, history, lesso
           </div>
         )}
         <div className="row" style={{ justifyContent: 'space-between' }}>
-          <h1>{fb.headline}</h1>
+          <div className="row" style={{ gap: 10 }}><Mascot size={54} mood={fb.stars >= 2 ? 'star' : fb.stars === 1 ? 'happy' : 'calm'} /><h1>{fb.headline}</h1></div>
           {!s && <span style={{ fontSize: '1.8rem' }}><Stars n={fb.stars} /></span>}
         </div>
         <div className="feedback">

@@ -1,4 +1,4 @@
-# Keyfall – product spec
+# Mochi MIDI – product spec
 
 **For:** an adult beginner with an Arturia MiniLab 3 (25 keys) on a Windows PC, who played flute, knows some theory,
 loves piano music and wants to understand and compose, not just press keys.

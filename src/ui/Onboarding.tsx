@@ -5,6 +5,7 @@ import { noteNameOct } from '../music/theory'
 import { settings } from '../store/store'
 import { useMidiStatus } from './hooks'
 import { MidiDiagnostics } from './Settings'
+import { Mascot } from './Mascot'
 
 const STEPS = ['Connect', 'Choose input', 'Test keys', 'Sound', 'Timing', 'Play']
 
@@ -31,7 +32,7 @@ export function Onboarding({ done }: { done: (startLesson: boolean) => void }) {
 
   return (
     <div className="page" style={{ maxWidth: 760, paddingTop: 48 }}>
-      <div className="row welcome" style={{ gap: 14 }}><div className="brand-mark lg" /><h1>Welcome to Keyfall</h1></div>
+      <div className="row welcome" style={{ gap: 14 }}><Mascot size={52} /><h1>Welcome to Mochi MIDI</h1></div>
       <div className="steps" aria-label={`Step ${step + 1} of ${STEPS.length}`}>{STEPS.map((s, i) => <div key={s} className={i <= step ? 'done' : ''} title={s} />)}</div>
 
       <div className="card col step-card" key={step} style={{ gap: 16, padding: 28 }}>

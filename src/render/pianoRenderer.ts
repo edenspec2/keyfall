@@ -59,36 +59,37 @@ interface Palette {
   additive: boolean // 'lighter' blending only looks right on a dark stage
   autoAlpha: number // notes the app plays itself
 }
+// Kawaii: candy notes (sky→lavender right hand, peach→pink left), a cream-and-plum keyboard, pink hit line.
 const PALETTES: Record<RenderTheme, Palette> = {
   light: {
-    hands: { R: ['#22b8f0', '#4f46e5'], L: ['#fb923c', '#e11d48'] },
-    stage: ['#f7f8fc', '#e9edf8'],
-    lane: 'rgba(30,41,90,0.024)', cLine: 'rgba(30,41,90,0.09)', beat: 'rgba(30,41,90,0.05)', bar: 'rgba(30,41,90,0.13)', barText: 'rgba(30,41,90,0.42)', loop: 'rgba(99,102,241,0.08)',
-    floor: 'rgba(99,102,241,0.16)',
-    line: 'rgba(79,70,229,0.75)', lineWait: 'rgba(245,158,11,0.95)',
-    bed: '#dfe3ee', white: '#ffffff', whiteLip: '#c9cfdd', whiteShade: ['rgba(15,23,42,0.10)', 'rgba(15,23,42,0)'], black: '#1d2233', blackLip: '#0b0e17', blackShine: 'rgba(255,255,255,0.14)',
-    keyText: 'rgba(30,41,59,0.45)', middleC: '#4f46e5', dot: 'rgba(99,102,241,0.55)',
-    heldKey: '#a5b4fc', heldKeyBlack: '#6366f1',
-    padBed: '#e3e7f1', padIdle: '#ffffff', padText: 'rgba(30,41,59,0.6)',
-    label: 'rgba(255,255,255,0.95)',
-    miss: '#cbd2e0', ok: '#10b981', bad: '#ef4444', warn: '#f59e0b', perfect: '#06b6d4',
-    judgeHalo: 'rgba(255,255,255,0.9)', milestone: 'rgba(79,70,229,0.9)', dust: '',
-    additive: false, autoAlpha: 0.38,
+    hands: { R: ['#7fd0ff', '#a98bff'], L: ['#ffbd8a', '#ff7eb6'] },
+    stage: ['#fff9fc', '#fdeaf4'],
+    lane: 'rgba(232,80,143,0.03)', cLine: 'rgba(232,80,143,0.12)', beat: 'rgba(150,70,130,0.06)', bar: 'rgba(150,70,130,0.15)', barText: 'rgba(120,60,110,0.5)', loop: 'rgba(201,167,255,0.14)',
+    floor: 'rgba(255,111,168,0.2)',
+    line: 'rgba(255,111,168,0.85)', lineWait: 'rgba(255,183,3,0.95)',
+    bed: '#f6d9e7', white: '#fffdfe', whiteLip: '#f1c6da', whiteShade: ['rgba(214,61,124,0.10)', 'rgba(214,61,124,0)'], black: '#5b3f6e', blackLip: '#3d2850', blackShine: 'rgba(255,255,255,0.18)',
+    keyText: 'rgba(110,60,100,0.5)', middleC: '#e8508f', dot: 'rgba(201,120,255,0.6)',
+    heldKey: '#ffbfdb', heldKeyBlack: '#ff7eb6',
+    padBed: '#f8dfea', padIdle: '#ffffff', padText: 'rgba(110,60,100,0.65)',
+    label: 'rgba(74,44,71,0.85)',
+    miss: '#ecd3df', ok: '#2bc985', bad: '#ff5c8a', warn: '#ffb703', perfect: '#ff6fa8',
+    judgeHalo: 'rgba(255,255,255,0.92)', milestone: 'rgba(214,61,124,0.9)', dust: '',
+    additive: false, autoAlpha: 0.4,
   },
   dark: {
-    hands: { R: ['#67e8f9', '#3b82f6'], L: ['#fdba74', '#f43f5e'] },
-    stage: ['#0b0f1c', '#121a30'],
-    lane: 'rgba(255,255,255,0.025)', cLine: 'rgba(255,255,255,0.07)', beat: 'rgba(255,255,255,0.045)', bar: 'rgba(255,255,255,0.12)', barText: 'rgba(255,255,255,0.35)', loop: 'rgba(139,92,246,0.09)',
-    floor: 'rgba(99,102,241,0.26)',
-    line: 'rgba(165,180,252,0.85)', lineWait: 'rgba(251,191,36,0.9)',
-    bed: '#05070d', white: '#eef1f7', whiteLip: '#9aa2b5', whiteShade: ['rgba(0,0,0,0.20)', 'rgba(0,0,0,0)'], black: '#191d29', blackLip: '#07080d', blackShine: 'rgba(255,255,255,0.12)',
-    keyText: 'rgba(20,22,32,0.45)', middleC: '#4f46e5', dot: 'rgba(129,140,248,0.75)',
-    heldKey: '#a5b4fc', heldKeyBlack: '#818cf8',
-    padBed: '#0a0d16', padIdle: '#1c2232', padText: 'rgba(232,235,244,0.7)',
-    label: 'rgba(8,10,18,0.85)',
-    miss: '#3a4256', ok: '#34d399', bad: '#f87171', warn: '#fbbf24', perfect: '#67e8f9',
-    judgeHalo: 'rgba(5,6,10,0.75)', milestone: 'rgba(199,210,254,0.85)', dust: 'rgba(200,210,255,0.14)',
-    additive: true, autoAlpha: 0.42,
+    hands: { R: ['#9fe1ff', '#b79bff'], L: ['#ffc79e', '#ff8ec7'] },
+    stage: ['#1a1330', '#24183f'],
+    lane: 'rgba(255,200,235,0.03)', cLine: 'rgba(255,200,235,0.08)', beat: 'rgba(255,200,235,0.05)', bar: 'rgba(255,200,235,0.13)', barText: 'rgba(255,220,240,0.42)', loop: 'rgba(201,167,255,0.12)',
+    floor: 'rgba(255,142,199,0.26)',
+    line: 'rgba(255,170,215,0.9)', lineWait: 'rgba(255,209,102,0.92)',
+    bed: '#110b22', white: '#fbeef6', whiteLip: '#c9a8c4', whiteShade: ['rgba(40,10,40,0.22)', 'rgba(40,10,40,0)'], black: '#2b2045', blackLip: '#140e26', blackShine: 'rgba(255,255,255,0.14)',
+    keyText: 'rgba(70,40,70,0.5)', middleC: '#e8508f', dot: 'rgba(201,167,255,0.8)',
+    heldKey: '#ffbfdb', heldKeyBlack: '#ff8ec7',
+    padBed: '#140e26', padIdle: '#2e2250', padText: 'rgba(253,240,250,0.72)',
+    label: 'rgba(40,20,45,0.85)',
+    miss: '#4b3d70', ok: '#6ee7b7', bad: '#ff8aa5', warn: '#ffd166', perfect: '#ff8ec7',
+    judgeHalo: 'rgba(20,10,35,0.75)', milestone: 'rgba(255,198,228,0.9)', dust: 'rgba(255,200,235,0.16)',
+    additive: true, autoAlpha: 0.45,
   },
 }
 let pal = PALETTES.light
@@ -98,8 +99,11 @@ export function setRenderTheme(t: RenderTheme) { if (t !== themeName) { themeNam
 /** The current theme's colour for a hand (sparks and pops use it). */
 export const noteColor = (hand: 'R' | 'L') => pal.hands[hand][0]
 
-const FONT = '-apple-system, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif'
-const DISPLAY = '-apple-system, "SF Pro Display", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif'
+const FONT = '"Nunito Variable", "Nunito", "Segoe UI", system-ui, sans-serif'
+const DISPLAY = '"Fredoka Variable", "Fredoka", "Nunito Variable", "Segoe UI", system-ui, sans-serif'
+// A unit heart (about 1 × 1, centred) for the sparks that burst from a hit.
+const HEART_D = 'M0 0.3 C-0.05 0.25 -0.5 -0.05 -0.5 -0.3 C-0.5 -0.55 -0.2 -0.62 0 -0.38 C0.2 -0.62 0.5 -0.55 0.5 -0.3 C0.5 -0.05 0.05 0.25 0 0.3 Z'
+let heart: Path2D | undefined // built on first draw: Path2D doesn't exist in Node tests
 
 /** Judgment text; 'hit' is Wait mode (no timing), 'wrong' a key that wasn't asked for. */
 export type Judgment = Grade | 'wrong'
@@ -668,8 +672,12 @@ function drawEffects(ctx: CanvasRenderingContext2D, W: number, hitY: number, now
     const sec = t * 0.45
     ctx.globalAlpha = 1 - t
     ctx.fillStyle = sp.color
-    const z = sp.size * (1 - t * 0.6)
-    ctx.fillRect(x + sp.vx * sec - z / 2, hitY + sp.vy * sec + 700 * sec * sec - z / 2, z, z)
+    const z = sp.size * (1 - t * 0.6) * 1.6 // hearts read smaller than squares of the same size
+    ctx.save()
+    ctx.translate(x + sp.vx * sec, hitY + sp.vy * sec + 700 * sec * sec)
+    ctx.scale(z, z)
+    ctx.fill(heart ??= new Path2D(HEART_D))
+    ctx.restore()
   }
   ctx.globalCompositeOperation = 'source-over'
 

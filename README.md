@@ -1,4 +1,4 @@
-# Keyfall
+# Mochi MIDI
 
 Learn piano and make music with an Arturia MiniLab 3 (or any MIDI keyboard): Synthesia-style falling notes, a 30-lesson
 curriculum written for 25 keys, teacher-style feedback, a live theory panel, and a small studio to record, edit and

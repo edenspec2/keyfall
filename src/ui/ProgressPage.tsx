@@ -1,6 +1,7 @@
 import { CURRICULUM, STAGES } from '../lessons/curriculum'
 import { library, progress, streak, useStore } from '../store/store'
 import { Stars } from './Results'
+import { Mascot } from './Mascot'
 
 export function ProgressPage() {
   const p = useStore(progress)
@@ -55,7 +56,7 @@ export function ProgressPage() {
 
       <div className="card col">
         <h3>Recent practice</h3>
-        {!attempts.length && <div className="empty"><span aria-hidden>♪</span><p className="sub">Nothing yet – your first lesson is waiting in Learn.</p></div>}
+        {!attempts.length && <div className="empty"><Mascot size={48} mood="calm" /><p className="sub">Nothing yet – your first lesson is waiting in Learn.</p></div>}
         {attempts.slice(0, 15).map((a, i) => (
           <div key={i} className="row" style={{ justifyContent: 'space-between', borderBottom: '1px solid var(--line)', paddingBottom: 6 }}>
             <span>{a.lesson.title} <span className="sub">· {a.mode} · {a.bpm} BPM</span></span>

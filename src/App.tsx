@@ -17,6 +17,7 @@ import { MidiStatusPill, Settings } from './ui/Settings'
 import { KnobReadout, SoundPanel } from './ui/SoundPanel'
 import { progress } from './store/store'
 import { setRenderTheme } from './render/pianoRenderer'
+import { Mascot } from './ui/Mascot'
 
 type Page = 'learn' | 'practice' | 'explore' | 'create' | 'progress' | 'settings'
 
@@ -99,7 +100,7 @@ export default function App() {
   return (
     <div className="app">
       <nav className="sidebar" aria-label="Main">
-        <div className="brand"><div className="brand-mark" /><span>Keyfall</span></div>
+        <div className="brand"><Mascot size={34} /><span>Mochi MIDI</span></div>
         {(Object.keys(LABELS) as Page[]).map((p) => (
           <button key={p} className={`nav-btn ${page === p ? 'active' : ''}`} onClick={() => go(p)} aria-current={page === p ? 'page' : undefined}>
             {page === p && <span className="nav-indicator" aria-hidden />}
