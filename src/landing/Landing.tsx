@@ -3,8 +3,8 @@ import { Mascot } from '../ui/Mascot'
 
 const Demo = lazy(() => import('./Demo'))
 
-// shortcut: no form yet; paste the Tally share link here once the form exists, and the button opens it.
-const SIGNUP_URL = ''
+// The beta sign-up form (Tally). Empty = the section says the form opens soon.
+const SIGNUP_URL = 'https://tally.so/r/vXXWNg'
 
 const FEATURES = [
   ['5 practice modes', 'Watch, Wait, Rhythm, Loop, Free'],
