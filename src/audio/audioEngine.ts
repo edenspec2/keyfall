@@ -2,6 +2,7 @@ import * as Tone from 'tone'
 import { kit as drumKit, type Kit } from '../music/drums'
 import { toneName } from '../music/theory'
 import { defaults, effective, type Effective, type Params } from './sound'
+import { track } from '../analytics'
 
 export type InstrumentId = 'piano' | 'epiano' | 'strings' | 'synth' | 'harmonium' | 'bansuri'
 export const INSTRUMENTS: { id: InstrumentId; label: string }[] = [
@@ -186,7 +187,7 @@ class AudioEngine {
    */
   start() {
     if (this.starting) { this.resume(); return this.starting }
-    return (this.starting = this.boot().catch((err) => { this.starting = null; this.lastError = String(err); throw err })) // a failed start can be retried
+    return (this.starting = this.boot().catch((err) => { this.starting = null; this.lastError = String(err); track('sound-failed', 'start', true); throw err })) // a failed start can be retried
   }
   /**
    * Ask the browser to run the audio clock. Called from every gesture until it runs: on phones a touch only counts
@@ -504,6 +505,7 @@ class AudioEngine {
     const failed = () => {
       // Missing samples: fall back to a light synth so the app still makes sound.
       this.pianoFailed = true
+      track('sound-failed', 'piano', true)
       const v = this.makeSynth('piano')
       this.voices.set('piano', v)
       this.applyVoice('piano', v)

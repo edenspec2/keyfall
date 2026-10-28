@@ -584,9 +584,11 @@ html:not(.vt) .main > * { animation: page-in var(--dur-page) var(--ease-out) bot
   .practice-bar > .btn.primary { order: -1; }
   /* Explore: the keyboard fills the screen and the scale/chord cards are one scroll below (they were unreachable). */
   .explore-split { grid-template-rows: 100% auto; overflow-y: auto; }
-  .practice-bar .col .sub { display: none; }
+  /* The lesson title is on the lesson card; without it every control fits in one row on a phone (measured: 1039 px of
+     controls in 821 px, so the reset button and View menu sat off-screen). */
+  .practice-bar > .col { display: none; }
   .practice-bar .btn, .practice-bar select, .practice-bar .seg button { padding: 4px 8px; font-size: 0.8rem; }
-  .practice-bar input[type='range'] { width: 84px; }
+  .practice-bar input[type='range'] { width: 70px; }
   .menu-panel { position: fixed; top: 44px; right: 8px; } /* the bar scrolls sideways here, which would clip it */
   .hud { top: 6px; }
   .toast { top: 40px; }

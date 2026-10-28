@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { audio } from '../audio/audioEngine'
+import { track } from '../analytics'
 import { improvFeedback, makeFeedback, type Feedback } from '../engine/feedback'
 import type { Grade, ScoredNote, Summary } from '../engine/scorer'
 import { Session, type SessionState } from '../engine/session'
@@ -64,6 +65,9 @@ export function Practice({ lesson, onExit, onNext }: { lesson: Lesson; onExit: (
   const hud = useRef<HTMLDivElement>(null)
   const toast = useRef<HTMLDivElement>(null)
   const startedAt = useRef(0)
+  // Focus Start without scrolling to it: autoFocus scrolled the lesson card down on phones, hiding its title.
+  const startBtn = useRef<HTMLButtonElement>(null)
+  useEffect(() => { if (showIntro) startBtn.current?.focus({ preventScroll: true }) }, [showIntro])
   const chordEl = useRef<HTMLDivElement>(null)
   const pendingStart = useRef(false)
   // osu!-style live stats: updated from the frame loop through refs, never through React state.
@@ -140,6 +144,7 @@ export function Practice({ lesson, onExit, onNext }: { lesson: Lesson; onExit: (
       const oneHand = lesson.hands === 'both' && hands !== 'both'
       const fb = makeFeedback(lesson, mode, sum, session.minBpm, prev, oneHand)
       recordAttempt(lesson.id, { date: Date.now(), mode, bpm: session.minBpm, accuracy: sum.accuracy, timing: sum.timing, stars: fb.stars })
+      if (fb.stars >= 2) track('lesson-passed', lesson.id, true)
       setRun({ summary: sum as Summary, maxCombo: stats.current.max, score: Math.round(stats.current.score) })
       setResult(fb)
     }
@@ -157,6 +162,7 @@ export function Practice({ lesson, onExit, onNext }: { lesson: Lesson; onExit: (
     resetStats()
     gradeMap.current.clear()
     startedAt.current = performance.now()
+    track('lesson-started', lesson.id, true)
     session.restart()
   }
   const finishImprov = () => {
@@ -166,6 +172,7 @@ export function Practice({ lesson, onExit, onNext }: { lesson: Lesson; onExit: (
     const fb = improvFeedback(session.improvSummary(), n === 5 ? 'pentatonic scale' : n === 6 ? 'blues scale' : lesson.key ? `${lesson.key} scale` : 'scale', lesson.pass.minAccuracy, lesson.instrument === 'synth')
     progress.set((p) => ({ ...p, improvisations: p.improvisations + 1 }))
     recordAttempt(lesson.id, { date: Date.now(), mode: 'free', bpm, accuracy: session.improvSummary().inScale, timing: null, stars: fb.stars })
+    if (fb.stars >= 2) track('lesson-passed', lesson.id, true)
     setResult(fb)
   }
   const togglePlay = () => {
@@ -391,7 +398,7 @@ export function Practice({ lesson, onExit, onNext }: { lesson: Lesson; onExit: (
                 {lesson.kind === 'play' && <p className="sub">Start in <b>Wait</b> mode to learn the notes, then switch to <b>Rhythm</b> to play in time. Space = play/pause.</p>}
                 {lesson.kind === 'improvise' && <p className="sub">The backing loops until you press <b>Finish</b>. Purple dots mark the notes of the scale – any of them will sound good.</p>}
                 <div className="row">
-                  <button className="btn primary" onClick={() => void start()} autoFocus>▶ Start{lesson.kind === 'play' ? ` in ${MODES.find((m) => m.id === mode)!.label} mode` : ''}</button>
+                  <button className="btn primary" onClick={() => void start()} ref={startBtn}>▶ Start{lesson.kind === 'play' ? ` in ${MODES.find((m) => m.id === mode)!.label} mode` : ''}</button>
                   {lesson.kind === 'play' && mode !== 'watch' && <button className="btn" onClick={() => { pendingStart.current = true; setMode('watch') }}>Watch it first</button>}
                 </div>
               </div>

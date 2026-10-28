@@ -3,6 +3,7 @@ import { audio, ENGINE_KEY, INSTRUMENTS, type InstrumentId } from '../audio/audi
 import { midi } from '../midi/midiInput'
 import { noteNameOct } from '../music/theory'
 import { progress, settings, useStore } from '../store/store'
+import { GOATCOUNTER, setStatsAllowed, statsAllowed } from '../analytics'
 import { useMidiStatus, useTicker } from './hooks'
 
 export function MidiStatusPill() {
@@ -203,6 +204,33 @@ function Calibration() {
   )
 }
 
+/** The beta feedback form (Tally or Google Forms); '' hides the button. */
+const FEEDBACK_URL = ''
+
+/** Feedback, privacy and credits. The piano samples are CC BY 3.0, which requires this visible credit. */
+function About() {
+  const [stats, setStats] = useState(statsAllowed)
+  return (
+    <div className="col" style={{ gap: 10 }}>
+      {FEEDBACK_URL && <div className="row"><a className="btn small primary" href={FEEDBACK_URL} target="_blank" rel="noopener noreferrer">Send feedback</a><span className="sub">Found a bug, or something confusing? Tell us – it takes a minute.</span></div>}
+      <p className="sub">No account and no ads. Your progress, songs and settings stay on this device. <a href={`${import.meta.env.BASE_URL}privacy.html`} target="_blank" rel="noopener">Privacy policy</a></p>
+      {GOATCOUNTER && (
+        <label className="row" style={{ gap: 6 }}>
+          <input type="checkbox" checked={stats} onChange={(e) => { setStatsAllowed(e.target.checked); setStats(e.target.checked) }} />
+          Send anonymous usage counts (which lessons are started and passed, and whether the sound failed). Nothing about you.
+        </label>
+      )}
+      <h3 style={{ margin: '6px 0 0' }}>Credits</h3>
+      <p className="sub">
+        Piano: <a href="https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html" target="_blank" rel="noopener">Salamander Grand Piano V3</a> by Alexander Holm,
+        licensed <a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">CC BY 3.0</a>. Changed for this app: three
+        velocity layers chosen, trimmed, level-matched and re-encoded.
+        Audio engine: <a href="https://tonejs.github.io/" target="_blank" rel="noopener">Tone.js</a> (MIT). Interface: React (MIT).
+      </p>
+    </div>
+  )
+}
+
 export function Settings({ rerunSetup }: { rerunSetup: () => void }) {
   const st = useStore(settings)
   return (
@@ -259,6 +287,7 @@ export function Settings({ rerunSetup }: { rerunSetup: () => void }) {
           <button className="btn small danger" onClick={() => { if (confirm('Erase all lesson progress and practice history? Your compositions are kept.')) progress.set({ lessons: {}, days: {}, improvisations: 0 }) }}>Reset progress</button>
         </div>
       </section>
+      <section className="card col"><h2>About</h2><About /></section>
     </div>
   )
 }

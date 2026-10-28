@@ -6,6 +6,7 @@ import { perform } from '../audio/perform'
 import { midi } from '../midi/midiInput'
 import type { Trail } from '../render/pianoRenderer'
 import { settings, sound } from '../store/store'
+import { initStats } from '../analytics'
 
 /** Recent notes for the Free-play "rising notes" view. */
 export const trails: Trail[] = []
@@ -45,6 +46,7 @@ export function initLiveInput() {
   })
   midi.onCC((e) => handleCC(e.cc, e.raw))
   window.addEventListener('unhandledrejection', (e) => { audio.lastError = String(e.reason?.message ?? e.reason) })
+  initStats()
 
   const applySettings = () => {
     const s = settings.get()

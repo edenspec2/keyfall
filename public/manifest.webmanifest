@@ -1,7 +1,7 @@
 {
-  "name": "Keyfall",
-  "short_name": "Keyfall",
-  "description": "Learn piano and make music on your MIDI keyboard",
+  "name": "Mochi MIDI",
+  "short_name": "Mochi MIDI",
+  "description": "Learn piano on your MIDI controller",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
