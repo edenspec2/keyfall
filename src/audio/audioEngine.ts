@@ -228,9 +228,9 @@ class AudioEngine {
     // exists, connected or not (the kit's three hats alone ~27 % of a PC's audio thread with nothing playing).
     this.started = true
     this.chain = this.makeChain()
-    // Synth sounds go through a vibrato the mod strip controls (depth 0 = no effect). Not on phones (~1.3 % of a
-    // PC's audio thread, always): there the mod strip and the bansuri go without it.
-    this.vibrato = this.light ? null : new Tone.Vibrato(5.5, 0).connect(this.chain.input)
+    // Synth sounds go through a vibrato the mod strip controls (depth 0 = no effect). It costs ~1.3 % of a PC's audio
+    // thread from the moment it exists, so phones build it only when the bansuri or the mod strip first needs it.
+    this.vibrato = this.light ? null : this.makeVibrato()
     this.voices.set('piano', this.makePiano())
     this.apply()
     this.resume()
@@ -462,7 +462,17 @@ class AudioEngine {
   /** Mod strip: 0..1 → vibrato depth on the synth sounds. */
   setMod(m: number) { this.mod = m; this.applyVibrato() }
   /** The bansuri has a gentle vibrato of its own, like a breath; the mod strip adds to it. */
-  private applyVibrato() { if (this.vibrato) this.vibrato.depth.value = (this.inst === 'bansuri' ? 0.05 : 0) + this.mod * 0.3 }
+  private applyVibrato() {
+    const depth = (this.inst === 'bansuri' ? 0.05 : 0) + this.mod * 0.3
+    if (!this.vibrato && depth > 0 && this.chain) this.vibrato = this.makeVibrato() // phones: first use
+    if (this.vibrato) this.vibrato.depth.value = depth
+  }
+  /** Synth voices made before it existed (on phones it is built on first use) are moved onto it. */
+  private makeVibrato() {
+    const v = new Tone.Vibrato((this.applied as Effective).vibratoRate ?? 5.5, 0).connect(this.chain!.input)
+    for (const s of [...this.voices.values(), this.fallback]) if (s && !(s instanceof Tone.Sampler)) { s.disconnect(); s.connect(v) }
+    return v
+  }
 
   /**
    * Phones: fetch and decode the piano as soon as the page opens (decoding needs no tap; only playing does), so the

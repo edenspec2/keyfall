@@ -73,6 +73,20 @@ describe('light engine (phones)', () => {
     expect(made.nodes.length).toBeGreaterThan(built)
     expect(of('MembraneSynth').some((n) => !n.rec.disposed)).toBe(true)
     vi.useRealTimers()
+    // Vibrato: built on first use. A synth already playing (e-piano) is moved onto it; the piano never goes through it.
+    audio.instrument = 'epiano'
+    audio.noteOn(64, 90); audio.noteOff(64)
+    const epiano = of('PolySynth').at(-1)!
+    expect(of('Vibrato').length).toBe(0)
+    audio.setMod(0.5)
+    expect(of('Vibrato').length).toBe(1)
+    const vib = of('Vibrato')[0]
+    expect(epiano.rec.cut).toBe(true)
+    expect(epiano.rec.to.includes(vib.self)).toBe(true)
+    expect(vib.rec.to.includes(of('Gain')[0].self)).toBe(true) // into the chain input
+    audio.setMod(0); audio.setMod(0.2)
+    expect(of('Vibrato').length).toBe(1) // built once
+    audio.instrument = 'piano'
     vi.unstubAllGlobals()
   })
 })
