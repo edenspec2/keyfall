@@ -110,3 +110,16 @@ describe('trimTail (phone piano samples)', () => {
     expect(trimTail(ctx as never, short as never)).toBe(short) // nothing to cut: the recording itself
   })
 })
+
+describe('pickLayer (piano touch layers)', () => {
+  it('plays the highest loaded layer the velocity reaches, else the medium recordings', async () => {
+    const { pickLayer } = await import('../src/audio/audioEngine')
+    const layers = [{ from: 1, ready: true, s: 'soft' }, { from: 49, ready: true, s: 'medium' }, { from: 97, ready: true, s: 'hard' }]
+    expect([1, 48, 49, 96, 97, 127].map((v) => pickLayer(layers, v, 'medium'))).toEqual(['soft', 'soft', 'medium', 'medium', 'hard', 'hard'])
+    // Phones have no soft layer, and the hard one is used only once all its notes have loaded.
+    const phone = [{ from: 49, ready: false, s: 'medium' }, { from: 97, ready: false, s: 'hard' }]
+    expect([20, 100].map((v) => pickLayer(phone, v, 'medium'))).toEqual(['medium', 'medium'])
+    phone[1].ready = true
+    expect([20, 60, 100].map((v) => pickLayer(phone, v, 'medium'))).toEqual(['medium', 'medium', 'hard'])
+  })
+})

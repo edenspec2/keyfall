@@ -362,6 +362,7 @@ class AudioEngine {
     this.applyVibrato()
     const v = this.voices.get(this.inst)
     if (v) this.applyVoice(this.inst, v)
+    for (const l of this.pianoLayers) this.applyVoice('piano', l.s) // every touch layer gets the attack/release knobs
     if (this.fallback) this.applyVoice('piano', this.fallback)
   }
   private appliedBpm = 0
@@ -483,17 +484,21 @@ class AudioEngine {
     if (this.pianoJobs || !lightEngine()) return
     try {
       const decoder = new OfflineAudioContext(2, 1, Tone.getContext().sampleRate)
+      const order = [...PIANO_SAMPLES].sort((a, b) => Math.abs(a.midi - 60) - Math.abs(b.midi - 60))
       let prev: Promise<unknown> = Promise.resolve()
-      this.pianoJobs = [...PIANO_SAMPLES].sort((a, b) => Math.abs(a.midi - 60) - Math.abs(b.midi - 60)).map(({ note, file }) => {
-        const data = fetch(PIANO_URL + file).then((r) => r.arrayBuffer())
-        const job = Promise.all([data, prev]).then(([d]) => decoder.decodeAudioData(d)).then((b) => [note, trimTail(decoder, b)] as const)
+      // The medium layer first (it makes every note playable), then the hard one.
+      this.pianoJobs = PIANO_LAYERS.filter((l) => l.phone).flatMap(({ dir, phoneSec }) => order.map(({ note, file }) => {
+        const data = fetch(PIANO_URL + dir + file).then((r) => r.arrayBuffer())
+        const job = Promise.all([data, prev]).then(([d]) => decoder.decodeAudioData(d)).then((b) => [dir, note, trimTail(decoder, b, -45, phoneSec)] as const)
         prev = job.catch(() => {})
         return job
-      })
+      }))
       for (const j of this.pianoJobs) j.catch(() => {}) // reported once the engine waits on them, not as unhandled
     } catch { /* no offline decoding here: makePiano falls back to the synth piano */ }
   }
-  private pianoJobs: Promise<readonly [string, AudioBuffer]>[] | null = null
+  private pianoJobs: Promise<readonly [string, string, AudioBuffer]>[] | null = null
+  /** The piano's touch layers in velocity order; voice() plays the highest loaded one the velocity reaches. */
+  private pianoLayers: Layer[] = []
 
   private makePiano(): Voice {
     const failed = () => {
@@ -503,24 +508,36 @@ class AudioEngine {
       this.voices.set('piano', v)
       this.applyVoice('piano', v)
     }
+    const input = this.chain!.input
     if (!this.light) {
       const urls = Object.fromEntries(PIANO_SAMPLES.map((p) => [p.note, p.file]))
-      return new Tone.Sampler({ urls, baseUrl: PIANO_URL, release: 0.9, onload: () => { this.pianoLoaded = true }, onerror: failed }).connect(this.chain!.input)
+      this.pianoLayers = PIANO_LAYERS.map(({ dir, from }) => {
+        const l: Layer = { from, ready: false, s: null as unknown as Tone.Sampler }
+        // A soft or hard layer that fails to load is simply never used: the medium one plays every velocity.
+        l.s = new Tone.Sampler({ urls, baseUrl: PIANO_URL + dir, release: 0.9, onload: () => { l.ready = true; if (!dir) this.pianoLoaded = true }, onerror: dir ? () => {} : failed }).connect(input)
+        return l
+      })
+      return this.pianoLayers.find((l) => l.from === MEDIUM)!.s
     }
-    const s = new Tone.Sampler({ release: 0.9 }).connect(this.chain!.input)
+    this.pianoLayers = PIANO_LAYERS.filter((l) => l.phone).map(({ from }) => ({ from, ready: false, s: new Tone.Sampler({ release: 0.9 }).connect(input) }))
+    const medium = this.pianoLayers.find((l) => l.from === MEDIUM)!
     this.preloadPiano()
     void (async () => {
-      try {
-        if (!this.pianoJobs) throw new Error('piano not loadable')
-        for (const [i, job] of this.pianoJobs.entries()) {
-          const [note, b] = await job
-          s.add(note as Tone.Unit.Note, b)
-          if (i === 11) this.pianoLoaded = true // 12 recordings from middle C out cover the MiniLab's range: play them
-        }
-        this.pianoLoaded = true
-      } catch { failed() }
+      if (!this.pianoJobs) return failed()
+      const added = new Map<string, number>()
+      for (const job of this.pianoJobs) {
+        let dir: string, note: string, b: AudioBuffer
+        try { [dir, note, b] = await job } catch { if (!this.pianoLoaded) return failed(); continue } // a hard note missing: medium plays it
+        const layer = this.pianoLayers[PIANO_LAYERS.filter((l) => l.phone).findIndex((l) => l.dir === dir)]
+        layer.s.add(note as Tone.Unit.Note, b)
+        const n = (added.get(dir) ?? 0) + 1
+        added.set(dir, n)
+        if (layer === medium && n === 12) this.pianoLoaded = true // 12 recordings from middle C out cover the MiniLab's range
+        if (n === PIANO_SAMPLES.length) layer.ready = true // a layer plays only once complete: a gap would mean a far-pitched note
+      }
+      this.pianoLoaded = true
     })()
-    return s
+    return medium.s
   }
 
   private makeSynth(id: InstrumentId): Voice {
@@ -542,7 +559,7 @@ class AudioEngine {
     return v.connect(out)
   }
 
-  private voice(id = this.inst): Voice | null {
+  private voice(id = this.inst, vel = 64): Voice | null {
     if (!this.started) return null
     let v = this.voices.get(id)
     if (!v) { v = this.makeSynth(id); this.voices.set(id, v); this.applyVoice(id, v) }
@@ -551,7 +568,7 @@ class AudioEngine {
       if (!this.fallback) { this.fallback = this.makeSynth('piano'); this.applyVoice('piano', this.fallback) }
       return this.fallback
     }
-    return v
+    return v instanceof Tone.Sampler ? pickLayer(this.pianoLayers, vel, v) : v
   }
 
   /** Perceptual curve: MIDI velocity is roughly logarithmic in loudness. */
@@ -559,7 +576,7 @@ class AudioEngine {
 
   // ---- live playing ----
   noteOn(pitch: number, vel: number) {
-    const v = this.voice(); if (!v) return
+    const v = this.voice(this.inst, vel); if (!v) return
     // Re-striking a key that still rings (under the pedal, or on another instrument): end the old note first.
     // A PolySynth releases only one voice per pitch, so a second attack on top would ring forever after pedal-up.
     const old = this.liveVoice.get(pitch)
@@ -589,7 +606,7 @@ class AudioEngine {
 
   // ---- scheduled playback (auto-played notes, recordings) ----
   schedule(pitch: number, time: number, durSec: number, vel = 80, instrument?: InstrumentId) {
-    this.voice(instrument ?? this.backing ?? undefined)?.triggerAttackRelease(toneName(pitch), Math.max(0.05, durSec), Math.max(time, this.now()), this.gain(vel))
+    this.voice(instrument ?? this.backing ?? this.inst, vel)?.triggerAttackRelease(toneName(pitch), Math.max(0.05, durSec), Math.max(time, this.now()), this.gain(vel))
   }
   private lastClick = 0
   metronome(time: number, accent: boolean) {
@@ -603,6 +620,7 @@ class AudioEngine {
   /** Silence everything (stop/seek). */
   panic() {
     this.voices.forEach((v) => v.releaseAll())
+    for (const l of this.pianoLayers) l.s.releaseAll()
     this.fallback?.releaseAll()
     this.sustained.clear()
     this.down.clear()
@@ -622,6 +640,25 @@ const PIANO_SAMPLES = [
   ...[1, 2, 3, 4, 5, 6, 7].flatMap((o) => (['C', 'Ds', 'Fs', 'A'] as const).map((n, i) => ({ note: `${n.replace('s', '#')}${o}`, file: `${n}${o}.mp3`, midi: 12 * (o + 1) + [0, 3, 6, 9][i] }))),
   { note: 'C8', file: 'C8.mp3', midi: 108 },
 ]
+
+/**
+ * Touch layers: Salamander v4, v8 and v14, each note leveled to its v8 recording, so loudness still follows the app's
+ * velocity curve and only the tone brightens with a harder touch. A layer plays from MIDI velocity `from` up. Phones
+ * skip the soft layer and keep the hard one to 6 s: each layer is ~100 MB once decoded.
+ */
+const MEDIUM = 49
+const PIANO_LAYERS = [
+  { dir: 'soft/', from: 1, phone: false, phoneSec: 10 },
+  { dir: '', from: MEDIUM, phone: true, phoneSec: 10 },
+  { dir: 'hard/', from: 97, phone: true, phoneSec: 6 },
+]
+interface Layer { from: number; ready: boolean; s: Tone.Sampler }
+/** The highest ready layer the velocity reaches; below every ready layer, `fallback` (the medium recordings). */
+export function pickLayer<T>(layers: { from: number; ready: boolean; s: T }[], vel: number, fallback: T) {
+  let best = fallback
+  for (const l of layers) if (l.ready && vel >= l.from) best = l.s
+  return best
+}
 
 /**
  * A recording kept until it has faded `floorDb` below its strike (at least 2.5 s, at most `maxSec`), with a one-second

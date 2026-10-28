@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { audio } from '../audio/audioEngine'
 import { improvFeedback, makeFeedback, type Feedback } from '../engine/feedback'
 import type { Grade, ScoredNote, Summary } from '../engine/scorer'
@@ -19,6 +19,9 @@ import { Results, Stars, type RunStats } from './Results'
 type PlayMode = Exclude<PracticeMode, 'free'>
 const POINTS: Record<Grade, number> = { perfect: 300, good: 200, early: 100, late: 100, hit: 300, missed: 0 }
 const calm = () => matchMedia('(prefers-reduced-motion: reduce)').matches
+// A phone held upright fits the 25 keys into ~330 px; sideways they get ~820 px.
+const PORTRAIT_PHONE = '(orientation: portrait) and (max-width: 600px)'
+const onOrientation = (cb: () => void) => { const m = matchMedia(PORTRAIT_PHONE); m.addEventListener('change', cb); return () => m.removeEventListener('change', cb) }
 const MODES: { id: PlayMode; label: string; hint: string }[] = [
   { id: 'watch', label: 'Watch', hint: 'Listen and watch the piece first.' },
   { id: 'wait', label: 'Wait', hint: 'The music waits for you to press the right keys. No time pressure.' },
@@ -57,6 +60,7 @@ export function Practice({ lesson, onExit, onNext }: { lesson: Lesson; onExit: (
   const [result, setResult] = useState<Feedback | null>(null)
   const [run, setRun] = useState<RunStats | null>(null)
   const [showIntro, setShowIntro] = useState(true)
+  const portraitPhone = useSyncExternalStore(onOrientation, () => matchMedia(PORTRAIT_PHONE).matches)
   const hud = useRef<HTMLDivElement>(null)
   const toast = useRef<HTMLDivElement>(null)
   const startedAt = useRef(0)
@@ -88,6 +92,19 @@ export function Practice({ lesson, onExit, onNext }: { lesson: Lesson; onExit: (
 
   // A lesson brings its own drums: the free-play kirtan rhythm loop pauses meanwhile (its drone keeps playing).
   useEffect(() => { audio.performFx = false; kirtan.lessonOpen = true; return () => { audio.performFx = true; kirtan.lessonOpen = false } }, [])
+
+  // Keep the screen on while a lesson is open: a phone that dims and locks mid-lesson also suspends the sound.
+  // The browser drops the lock whenever the page is hidden, so it is asked for again on return.
+  useEffect(() => {
+    let lock: WakeLockSentinel | null = null, gone = false
+    const ask = () => {
+      if (document.visibilityState !== 'visible' || lock && !lock.released) return
+      navigator.wakeLock?.request('screen').then((l) => { if (gone) void l.release(); else lock = l }, () => { /* refused (battery saver): the screen may dim */ })
+    }
+    ask()
+    document.addEventListener('visibilitychange', ask)
+    return () => { gone = true; document.removeEventListener('visibilitychange', ask); void lock?.release() }
+  }, [])
 
   // Some lessons choose their sound (bends need a synth); a synth lesson's backing uses the electric piano so it doesn't
   // bend along, while a harmonium or bansuri lesson keeps its backing on the same instrument.
@@ -368,6 +385,7 @@ export function Practice({ lesson, onExit, onNext }: { lesson: Lesson; onExit: (
                 <span className="stage-num">Stage {lesson.stage}</span>
                 <h1>{lesson.title}</h1>
                 <p style={{ color: 'var(--accent-2)', fontWeight: 600 }}>{lesson.goal}</p>
+                {portraitPhone && <div className="callout">📱 Turn your phone sideways: the keys get about 2.5× bigger.</div>}
                 {lesson.intro.map((p, i) => <p key={i}>{p}</p>)}
                 {advice && <div className="callout warn">{advice}</div>}
                 {lesson.kind === 'play' && <p className="sub">Start in <b>Wait</b> mode to learn the notes, then switch to <b>Rhythm</b> to play in time. Space = play/pause.</p>}
