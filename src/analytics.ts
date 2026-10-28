@@ -4,7 +4,7 @@
 // can switch it off in Settings.
 
 /** The site code from goatcounter.com (e.g. `mochimidi` for https://mochimidi.goatcounter.com); '' = counting off. */
-export const GOATCOUNTER = ''
+export const GOATCOUNTER = 'mochimidi'
 const OPT_OUT = 'pianoapp.v1.noStats'
 
 export type StatEvent = 'lesson-started' | 'lesson-passed' | 'sound-failed'
