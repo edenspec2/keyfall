@@ -148,8 +148,8 @@ export const CURRICULUM: Lesson[] = [
     title: 'Your first tune: Hot Cross Buns',
     goal: 'Play a three-note tune with the right hand around middle C.',
     intro: [
-      'Middle C is the white key in the very centre of your MiniLab, just left of the middle pair of black keys. Put your right thumb on it, finger 2 on the next white key (D) and finger 3 on the one after (E).',
-      'That is all this tune needs. On the flute you made every note with your breath; on the piano a small hammer does it for you. A relaxed, firm press is enough, no force.',
+      'Middle C is the white key just left of the middle pair of black keys, in the very centre of a 25-key keyboard. Put your right thumb on it, finger 2 on the next white key (D) and finger 3 on the one after (E).',
+      'That is all this tune needs. On the piano a small hammer makes each sound for you, so a relaxed, firm press is enough, no force.',
     ],
     tips: [
       'Keep your fingers curved, as if holding a small ball.',
@@ -176,7 +176,7 @@ export const CURRICULUM: Lesson[] = [
     intro: [
       'Pianists number fingers from the thumb: thumb 1, index 2, middle 3, ring 4, little finger 5. Both hands use the same numbers.',
       'Rest one finger on each key from C to G: that is the C position, and a huge amount of beginner music lives inside it. This tune uses C, D, E and reaches up to G with finger 5.',
-      'Notice the shape: bars 1–4 ask a question, bars 5–8 answer it and come home to C. Melodies breathe in phrases, exactly like your flute phrases.',
+      'Notice the shape: bars 1–4 ask a question, bars 5–8 answer it and come home to C. Melodies breathe in phrases, the way a singer breathes between lines.',
     ],
     tips: ['Leave finger 4 resting on F even though you never play it.', 'Let the long notes ring for their full length.'],
     bpm: 80,
@@ -194,7 +194,7 @@ export const CURRICULUM: Lesson[] = [
     title: 'Hello, left hand',
     goal: 'Play in the left-hand C position (C3–G3) with the mirrored finger numbers.',
     intro: [
-      'This is the brand-new part for a flute player: your left hand. Put finger 5 on the lowest C of the MiniLab and let fingers 4, 3, 2, 1 fall on D, E, F, G.',
+      'This is a brand-new part: your left hand. Put finger 5 on the C one octave below middle C (the lowest C on a 25-key keyboard) and let fingers 4, 3, 2, 1 fall on D, E, F, G.',
       'Because the hand is a mirror image, going up the keyboard means counting down: 5-4-3-2-1. It feels backwards for a day or two, then it is just normal.',
       'The left hand usually plays the low part: the bass and the harmony underneath the tune. You will meet Hot Cross Buns again down here.',
     ],
@@ -220,7 +220,7 @@ export const CURRICULUM: Lesson[] = [
     goal: 'Transpose two known tunes onto the black keys and see that a melody is a pattern, not a set of keys.',
     intro: [
       'The black keys come in groups of two and three. Put right-hand fingers 2, 3, 4 on the group of three just below middle C (F♯, G♯, A♯) and finger 5 on the C♯ just above middle C.',
-      'Now play Hot Cross Buns and Mary Had a Little Lamb on these keys. Same tunes, same finger shapes, a new home: that is transposition. On flute a new key means new fingerings; on the piano you can literally see the pattern move.',
+      'Now play Hot Cross Buns and Mary Had a Little Lamb on these keys. Same tunes, same finger shapes, a new home: that is transposition. On many instruments a new key means new fingerings; on the piano you can literally see the pattern move.',
       'A black key is a sharp of the white key to its left (F♯) or a flat of the one to its right (G♭): one key, two names.',
     ],
     tips: ['Play black keys with the long fingers (2, 3, 4) and stay near the front edge of the white keys.'],
@@ -247,7 +247,7 @@ export const CURRICULUM: Lesson[] = [
     title: 'Counting long notes: Au clair de la lune',
     goal: 'Hold quarter, half and whole notes for their exact length.',
     intro: [
-      'You already know rhythm from the flute. The piano adds one twist: a piano note starts loud and fades, and you cannot swell it with breath. So a whole note has to be held by counting, even while the sound is dying away.',
+      'Rhythm on the piano has one twist: a piano note starts loud and fades, and you cannot make it swell once it sounds. So a whole note has to be held by counting, even while the sound is dying away.',
       'Count "1 2 3 4" out loud. Lift the key exactly when the next note begins, not earlier.',
     ],
     tips: ['Try Rhythm mode with the metronome on.', 'Released early is shown in yellow; aim for none.'],
@@ -270,7 +270,7 @@ export const CURRICULUM: Lesson[] = [
     title: 'Two hands for the first time',
     goal: 'Add a left-hand bass note on beat 1 of each bar under a known melody.',
     intro: [
-      'On flute you only ever play one line. Here your left hand adds a single low note at the start of every bar while the right hand plays Mary Had a Little Lamb.',
+      'Until now you played one line at a time. Here your left hand adds a single low note at the start of every bar while the right hand plays Mary Had a Little Lamb.',
       'The left hand plays C (finger 5) under most bars and G (finger 1) where the tune leans on D. Those two notes are the bass of the two most important chords in C major: home (C) and away (G).',
       'Practise the hands separately first if it feels like patting your head and rubbing your tummy. That is normal.',
     ],
@@ -295,7 +295,7 @@ export const CURRICULUM: Lesson[] = [
     goal: 'Improvise freely on the five black keys over a gentle backing.',
     intro: [
       'The five black keys form a pentatonic scale, the scale behind folk music all over the world. Over this backing every black key sounds good, so there are no wrong notes.',
-      'Think like a flute player: play a short phrase, then breathe (rest). Try repeating a little idea, then changing its ending.',
+      'Think like a singer: play a short phrase, then breathe (rest). Try repeating a little idea, then changing its ending.',
     ],
     tips: [
       'Use only a few notes at first; three is plenty.',
@@ -317,7 +317,7 @@ export const CURRICULUM: Lesson[] = [
     title: 'Dotted rhythms: Jingle Bells',
     goal: 'Play dotted-quarter + eighth rhythms with a steady left-hand bass on beat 1.',
     intro: [
-      'A dotted quarter lasts one and a half beats, so the eighth note after it arrives late, on the "and" of beat 2. Count "1 2 3-and 4". You have tongued this rhythm a hundred times on the flute.',
+      'A dotted quarter lasts one and a half beats, so the eighth note after it arrives late, on the "and" of beat 2. Count "1 2 3-and 4". You know this rhythm from countless songs.',
       'The left hand still plays one note per bar: C, F, D or G with fingers 5, 2, 4 and 1 of the C position.',
     ],
     tips: ['Loop bars 3–4 and 5–6 until the dotted rhythm feels natural.'],
@@ -428,7 +428,7 @@ export const CURRICULUM: Lesson[] = [
     title: 'Ear training: intervals',
     goal: 'Hear an interval from middle C and find the second note by ear.',
     intro: [
-      'An interval is the distance between two notes. You already hear them as a flute player; now attach names. Major 2nd: a plain step, as at the start of a scale. Major 3rd: "Oh when the saints". Perfect 4th: the opening of Amazing Grace. Perfect 5th: "Twinkle, twinkle". Octave: the start of "Somewhere Over the Rainbow".',
+      'An interval is the distance between two notes. You already hear them in every tune; now attach names. Major 2nd: a plain step, as at the start of a scale. Major 3rd: "Oh when the saints". Perfect 4th: the opening of Amazing Grace. Perfect 5th: "Twinkle, twinkle". Octave: the start of "Somewhere Over the Rainbow".',
       'The app plays a short phrase that starts on middle C. Sing it back in your head, then play it. The last phrases have three to five notes.',
     ],
     tips: ['Sing or hum the phrase before you touch the keys.', 'Every phrase starts on middle C (or ends on it).'],
@@ -509,7 +509,7 @@ export const CURRICULUM: Lesson[] = [
     title: 'Your first chords: C, F and G',
     goal: 'Play root-position triads with the left hand (fingers 5-3-1).',
     intro: [
-      'A triad is three notes stacked in thirds: skip a key, play, skip a key, play. C–E–G is C major. On the flute you could only hint at harmony one note at a time; on the piano you can play it.',
+      'A triad is three notes stacked in thirds: skip a key, play, skip a key, play. C–E–G is C major. A voice or a flute can only hint at harmony one note at a time; on the piano you can play it.',
       'C, F and G are chords I, IV and V of C major. With just these three you can accompany hundreds of folk songs. G (V) wants to go home to C (I): you will hear that pull in bar 3 to 4.',
     ],
     tips: ['Press all three keys at exactly the same moment, like one sound.', 'Fingers 5-3-1 for every chord; the hand shape never changes, it only moves.'],
@@ -588,7 +588,7 @@ export const CURRICULUM: Lesson[] = [
     title: 'Arpeggios: chords one note at a time',
     goal: 'Break chords into rising arpeggios with the right hand.',
     intro: [
-      'An arpeggio is a chord played one note at a time. As a flute player you already know them: it is how a single-line instrument spells out harmony. On the piano the notes keep ringing, so the chord builds up in the air.',
+      'An arpeggio is a chord played one note at a time. It is how a single-line instrument, like a voice or a flute, spells out harmony. On the piano the notes keep ringing, so the chord builds up in the air.',
       'Each bar is one chord from the four-chord family, in the inversion closest to middle C. The left hand (auto) plays the roots.',
     ],
     tips: [
@@ -676,7 +676,7 @@ export const CURRICULUM: Lesson[] = [
     goal: 'Play the Ode to Joy theme with a quiet left-hand bass, shaping two phrases.',
     intro: [
       'Beethoven\'s Ninth Symphony theme moves almost only by step, which is why it fits in one hand position. Two four-bar phrases: the first ends on D (unfinished), the second lands on C (finished).',
-      'Balance is the new skill: the melody sings, the left hand is quieter. On flute your breath shaped a phrase; on piano you shape it with weight, a little more towards the middle of the phrase, a little less at the end.',
+      'Balance is the new skill: the melody sings, the left hand is quieter. On the piano you shape a phrase with weight, a little more towards the middle of the phrase, a little less at the end.',
     ],
     tips: ['Left hand softer than right hand, always.', 'The dotted rhythm in bars 4 and 8: hold the dot, then a quick short note.'],
     bpm: 84,
@@ -779,7 +779,7 @@ export const CURRICULUM: Lesson[] = [
     intro: [
       'An English tune from the 1500s, in A minor and in three beats per bar: count "1 2 3", with the strongest weight on 1. It starts with a pickup: the first A comes on beat 3, before the first full bar.',
       'Listen for G and G♯. The plain G gives the old, modal colour; the G♯ near each phrase ending is the leading tone from the A minor lesson, pulling home to A.',
-      'This one is right hand only. Make it sing: connect every note to the next (legato), the way you would slur it on the flute.',
+      'This one is right hand only. Make it sing: connect every note to the next (legato), the way a singer joins the notes of a line.',
     ],
     tips: ['Dotted rhythm (bars 2, 4, 6, 10, 12–14): long-short, like a gentle limp.', 'Your hand shifts down for the low E in bar 8; prepare it during the long B in bar 7.'],
     bpm: 84,
@@ -844,14 +844,14 @@ export const CURRICULUM: Lesson[] = [
     intro: [
       'Many space and film scores – the Interstellar theme is a famous example – are built from an ostinato: a short pattern repeated like a ticking clock, while the harmony underneath slowly changes. This is an original piece in that style (the real film themes are copyrighted, so they are not included here).',
       'The piece lives in your right hand: one shape the whole time – thumb, middle finger, little finger, middle finger – and only the thumb moves (E, F, E, D). The app plays the slow left-hand bass for you.',
-      'Each hand can be practised on its own: in Wait, Rhythm or Loop mode, use the Right / Left / Both switch at the top. When the right hand feels easy, try Left alone (one long note or fifth per bar), then Both – two independent jobs at once, the thing a flute can never do.',
+      'Each hand can be practised on its own: in Wait, Rhythm or Loop mode, use the Right / Left / Both switch at the top. When the right hand feels easy, try Left alone (one long note or fifth per bar), then Both – two independent jobs at once, something only a few instruments can do.',
       'The chords are Am–F–C–G, then Am–F–G–Am. That last move, i–VI–VII–i, is the "epic" minor cadence you hear in countless film scores: G does not pull home like a dominant, it lifts you there.',
-      'A piano note cannot swell like a flute note once it sounds. So the crescendo comes from each new note being a little firmer than the last: whisper the first bars, open up in bar 5, peak in bar 7, then land.',
+      'A piano note cannot swell once it sounds. So the crescendo comes from each new note being a little firmer than the last: whisper the first bars, open up in bar 5, peak in bar 7, then land.',
     ],
     tips: [
       'Right hand first, in Wait mode. Then Left alone, then Both – use the hand switch at the top.',
       'Keep every eighth note exactly even – the steadiness is what makes it hypnotic.',
-      'If you have a sustain pedal in the MiniLab\'s pedal jack, press it at each new bar and lift-and-press at the next one.',
+      'If you have a sustain pedal plugged into your keyboard\'s pedal jack, press it at each new bar and lift-and-press at the next one.',
     ],
     bpm: 66,
     timeSig: [4, 4],
@@ -989,7 +989,7 @@ export const CURRICULUM: Lesson[] = [
     title: 'Meet the pads: your first beat',
     goal: 'Play the basic rock beat: kick on 1 and 3, snare on 2 and 4, then add the hi-hat.',
     intro: [
-      'The 8 pads on your MiniLab are a drum kit here. Pad 1 is the kick (the big low drum), pad 2 the snare, pad 3 the closed hi-hat. The screen shows them to the right of the keyboard. No MiniLab handy? Keys 1–8 on the computer are the pads.',
+      'The pads on your keyboard (the MiniLab 3 has 8) are a drum kit here. Pad 1 is the kick (the big low drum), pad 2 the snare, pad 3 the closed hi-hat. The screen shows them to the right of the keyboard. No pads? Keys 1–8 on the computer are the pads.',
       'Almost every pop and rock song stands on this pattern: kick on beats 1 and 3, snare on 2 and 4. The snare on 2 and 4 is called the backbeat – it is what makes people nod their heads.',
       'Bars 1–2 are kick and snare only (left hand). In bars 3–4 your right hand adds the hi-hat on every eighth note: count "1 and 2 and 3 and 4 and".',
     ],
@@ -1063,7 +1063,7 @@ export const CURRICULUM: Lesson[] = [
     goal: 'Improvise a synth melody in A minor pentatonic and shape notes with the pitch and mod strips.',
     intro: [
       'A piano note is fixed once you strike it – but a synthesizer can keep changing. The two touch strips next to the keys do exactly that: the pitch strip bends the note up or down, the mod strip adds vibrato.',
-      'You know vibrato from the flute: a gentle wobble that makes a long note feel alive. Push the mod strip up a little on a long note, then bring it back down.',
+      'Vibrato is a gentle wobble that makes a long note feel alive, the way singers and violinists use it. Push the mod strip up a little on a long note, then bring it back down.',
       'For a bend, play a note and slide your finger up the pitch strip and back – like a singer sliding into a note. Every note of A minor pentatonic (A C D E G, purple dots) sounds good over the backing.',
     ],
     tips: ['Bend into the note on beat 1 of each bar.', 'Fewer notes, held longer, give the bends and vibrato room to sing.'],
@@ -1090,7 +1090,7 @@ export const CURRICULUM: Lesson[] = [
       'The tune uses only five notes – Sa Re Ga Pa Dha, here C D E G A – the same pentatonic you know from improvising, so nothing ever clashes with the drone. Lines 1 and 3 climb and stay open; lines 2 and 4 come down and rest on Sa.',
       KIRTAN_INTRO_TAIL,
     ],
-    tips: ['Sing the words as you play – the syllables are written next to each note.', 'Hold the last "Ram" of each line for its full two beats, like a long breath on the flute.'],
+    tips: ['Sing the words as you play – the syllables are written next to each note.', 'Hold the last "Ram" of each line for its full two beats, as if you were singing it.'],
     bpm: 80,
     timeSig: [4, 4],
     notes: [
@@ -1143,7 +1143,7 @@ export const CURRICULUM: Lesson[] = [
     goal: 'Play a slow, meditative chant with a long "Om" at the start of every line.',
     intro: [
       'Om Namah Shivaya – "I bow to Shiva" – is a six-syllable mantra. It is usually sung slowly and calmly, so this lesson is the slowest of the kirtan pieces.',
-      'Each line opens with a long Om (two beats). Let it ring: on the harmonium the note keeps sounding as long as you hold the key, just like a held breath on the flute.',
+      'Each line opens with a long Om (two beats). Let it ring: on the harmonium the note keeps sounding as long as you hold the key, like a long sung note.',
       KIRTAN_INTRO_TAIL,
     ],
     tips: ['Hold every Om for its full two beats before moving on.', 'The last line walks down E – D – D – C: slow down inside and let it settle on Sa.'],
@@ -1200,6 +1200,6 @@ export const STAGES: { stage: number; title: string; blurb: string }[] = [
   { stage: 4, title: 'Chords & harmony', blurb: 'Triads, inversions, the four-chord loop, arpeggios, accompaniment patterns and why V7 goes home.' },
   { stage: 5, title: 'Playing real music', blurb: 'Beethoven, Mozart\'s favourite folk tune, a round, Greensleeves and a Baroque minuet, with phrasing and balance.' },
   { stage: 6, title: 'Improvisation & composition', blurb: 'Pentatonic, minor and blues improvising, question-and-answer phrases, and your first 8-bar composition.' },
-  { stage: 7, title: 'Pads, bends & grooves', blurb: 'The MiniLab beyond the keys: drum grooves on the pads, a beat in one hand and chords in the other, and synth bends and vibrato on the touch strips. Opens after your first rhythm lesson.' },
+  { stage: 7, title: 'Pads, bends & grooves', blurb: 'Your controller beyond the keys: drum grooves on the pads, a beat in one hand and chords in the other, and synth bends and vibrato on the touch strips. Opens after your first rhythm lesson.' },
   { stage: 8, title: 'Kirtan', blurb: 'Chant along on the harmonium: Shree Ram Jay Ram, the Hare Krishna mantra, Om Namah Shivaya and Govinda Jaya Jaya, over a Sa–Pa drone and a dholak & kartal rhythm.' },
 ]

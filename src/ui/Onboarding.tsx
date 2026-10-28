@@ -37,8 +37,8 @@ export function Onboarding({ done }: { done: (startLesson: boolean) => void }) {
 
       <div className="card col step-card" key={step} style={{ gap: 16, padding: 28 }}>
         {step === 0 && <>
-          <h2>1 · Connect your MiniLab 3</h2>
-          <p>Plug the MiniLab into a USB port and click <b>Connect</b>. Your browser will ask for permission to use MIDI devices – allow it.</p>
+          <h2>1 · Connect your MIDI keyboard</h2>
+          <p>Plug your keyboard (for example an Arturia MiniLab 3) into a USB port and click <b>Connect</b>. Your browser will ask for permission to use MIDI devices – allow it.</p>
           <p className="sub">Close Arturia MIDI Control Center, Analog Lab or any DAW first: on Windows only one program can listen to the keyboard at a time.</p>
           <div className="row">
             <button className="btn primary" onClick={async () => { await midi.connect(); if (midi.status === 'ready') next() }} autoFocus>Connect</button>
@@ -50,7 +50,7 @@ export function Onboarding({ done }: { done: (startLesson: boolean) => void }) {
 
         {step === 1 && <>
           <h2>2 · Choose the input</h2>
-          <p>{m.connectedCount ? <>Found {m.connectedCount} MIDI input{m.connectedCount > 1 ? 's' : ''}. The MiniLab shows up as several ports; <b>Automatic</b> picks the right one. Press a few keys and watch the log.</> : <>No MIDI keyboard found yet. Check the USB cable, then click <b>Rescan devices</b>.</>}</p>
+          <p>{m.connectedCount ? <>Found {m.connectedCount} MIDI input{m.connectedCount > 1 ? 's' : ''}. Some keyboards, like the MiniLab, show up as several ports; <b>Automatic</b> picks the right one. Press a few keys and watch the log.</> : <>No MIDI keyboard found yet. Check the USB cable, then click <b>Rescan devices</b>.</>}</p>
           <MidiDiagnostics />
           <div className="row"><button className="btn primary" onClick={next} disabled={!m.connectedCount}>Next</button><button className="btn ghost" onClick={next}>Skip</button></div>
         </>}
@@ -71,7 +71,7 @@ export function Onboarding({ done }: { done: (startLesson: boolean) => void }) {
 
         {step === 3 && <>
           <h2>4 · Check the sound</h2>
-          <p>Your MiniLab makes no sound itself – the app plays a sampled grand piano through your computer. Click below, then play a few keys.</p>
+          <p>A MIDI keyboard makes no sound itself – the app plays a sampled grand piano through your computer. Click below, then play a few keys.</p>
           <p className="sub">Use wired headphones or speakers. Bluetooth headphones add a delay you will feel when playing.</p>
           <div className="row">
             <button className="btn primary" onClick={() => void enableSound()} autoFocus>🔊 Play a test chord</button>
