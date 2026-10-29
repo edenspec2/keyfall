@@ -6,7 +6,11 @@ export const ARP_MODES: { id: ArpMode; label: string }[] = [
 ]
 export const ARP_RATES = [{ label: '1/4', beats: 1 }, { label: '1/8', beats: 0.5 }, { label: '1/8T', beats: 1 / 3 }, { label: '1/16', beats: 0.25 }, { label: '1/16T', beats: 1 / 6 }, { label: '1/32', beats: 0.125 }]
 
-export interface ArpSettings { on: boolean; mode: ArpMode; rate: number; octaves: number; gate: number; latch: boolean }
+export interface ArpSettings {
+  on: boolean; mode: ArpMode; rate: number; octaves: number; gate: number; latch: boolean
+  swing?: number // 0..1: every second step is late by up to a third of a step (a triplet shuffle); missing in older saves
+}
+export const ARP_MAX_OCTAVES = 4
 export interface ChordSettings { on: boolean; shape: number[] }
 
 /**
@@ -16,7 +20,7 @@ export interface ChordSettings { on: boolean; shape: number[] }
 export function arpPattern(played: number[], mode: ArpMode, octaves: number): number[] {
   const base = mode === 'played' ? [...new Set(played)] : [...new Set(played)].sort((a, b) => a - b)
   const up: number[] = []
-  for (let o = 0; o < Math.max(1, Math.min(3, octaves)); o++) for (const p of base) if (p + 12 * o <= 127) up.push(p + 12 * o)
+  for (let o = 0; o < Math.max(1, Math.min(ARP_MAX_OCTAVES, octaves)); o++) for (const p of base) if (p + 12 * o <= 127) up.push(p + 12 * o)
   if (mode === 'down') return up.reverse()
   // Up/down doesn't repeat the top and bottom notes: C E G E | C E G E
   if (mode === 'updown') return up.length > 2 ? [...up, ...up.slice(1, -1).reverse()] : up

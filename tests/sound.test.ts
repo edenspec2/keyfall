@@ -129,8 +129,8 @@ describe('arpeggiator', () => {
     expect(arpPattern(held, 'played', 1)).toEqual([64, 60, 67])
     expect(arpPattern(held, 'up', 2)).toEqual([60, 64, 67, 72, 76, 79])
     expect(arpPattern(held, 'updown', 2)).toEqual([60, 64, 67, 72, 76, 79, 76, 72, 67, 64])
-    expect(arpPattern([60, 60], 'up', 9)).toEqual([60, 72, 84]) // duplicates dropped, octaves capped at 3
-    expect(arpPattern([120], 'up', 3)).toEqual([120]) // never above MIDI 127
+    expect(arpPattern([60, 60], 'up', 9)).toEqual([60, 72, 84, 96]) // duplicates dropped, octaves capped at 4
+    expect(arpPattern([120], 'up', 4)).toEqual([120]) // never above MIDI 127
     expect(arpPattern([60, 62], 'updown', 1)).toEqual([60, 62])
   })
   it('random never repeats a note when there is a choice', () => {

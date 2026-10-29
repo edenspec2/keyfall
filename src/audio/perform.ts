@@ -93,7 +93,8 @@ class Performer {
     const pattern = arpPattern(this.pool, this.arp.mode, this.arp.octaves)
     while (this.next < now + LOOKAHEAD) {
       const i = this.arp.mode === 'random' ? (this.prevRandom = randomStep(pattern.length, this.prevRandom)) : this.step % pattern.length
-      audio.schedule(pattern[i], this.next, stepSec * Math.max(0.05, this.arp.gate), this.vel, audio.instrument)
+      const late = this.step % 2 ? (this.arp.swing ?? 0) * stepSec / 3 : 0
+      audio.schedule(pattern[i], this.next + late, Math.min(stepSec * Math.max(0.05, this.arp.gate), stepSec - late), this.vel, audio.instrument)
       this.step++
       this.next += stepSec
     }

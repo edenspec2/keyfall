@@ -1,5 +1,5 @@
-import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react'
-import { ARP_MODES, ARP_RATES, transposeShape } from '../audio/arp'
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { ARP_MAX_OCTAVES, ARP_MODES, ARP_RATES, transposeShape } from '../audio/arp'
 import { audio, INSTRUMENTS, lightEngine, type InstrumentId } from '../audio/audioEngine'
 import {
   allPresets, captureChord, ccFor, clearCC, currentParams, deleteUserPreset, getParam, learn, loadPreset, renameUserPreset,
@@ -117,6 +117,14 @@ function PerformSection() {
   const bpm = useSyncExternalStore(sound.subscribe, () => sound.get().bpm)
   const [msg, setMsg] = useState('')
   const setArp = (p: Partial<typeof arp>) => setSound({ arp: { ...arp, ...p } })
+  const setBpm = (v: number) => setSound({ bpm: Math.round(Math.min(240, Math.max(40, v))) })
+  // Tap tempo: the average gap of the last few taps; a pause over 2 s starts a new count.
+  const taps = useRef<number[]>([])
+  const tap = () => {
+    const t = performance.now(), xs = (taps.current = [...taps.current.filter((x) => t - x < 2000), t].slice(-5))
+    if (xs.length > 1) setBpm((60000 * (xs.length - 1)) / (t - xs[0]))
+  }
+  const swing = arp.swing ?? 0
   const info = identifyChord(transposeShape(chord.shape, 60))
   return (
     <Section title="Arpeggiator & chord memory">
@@ -124,14 +132,20 @@ function PerformSection() {
       <div className="sp-row">
         <button className={`btn small${arp.on ? ' on' : ''}`} aria-pressed={arp.on} onClick={() => setArp({ on: !arp.on })}>Arp</button>
         <button className={`btn small${arp.latch ? ' on' : ''}`} aria-pressed={arp.latch} onClick={() => setArp({ latch: !arp.latch })} title="Keep playing after you let go">Hold</button>
-        <label className="sp-bpm">BPM <input type="number" min={40} max={240} value={bpm} onChange={(e) => { const v = +e.target.value; if (v >= 40 && v <= 240) setSound({ bpm: v }) }} /></label>
+      </div>
+      <div className="sp-row">
+        <Knob label="Tempo" value={bpm} min={40} max={240} norm={(bpm - 40) / 200} text={`${bpm} BPM`} steps={200}
+          onNorm={(n) => setBpm(40 + n * 200)} onReset={() => setBpm(100)} />
+        <button className="btn small" onClick={tap} title="Tap a few times in time to set the tempo">Tap</button>
+        <Knob label="Swing" value={swing} min={0} max={1} norm={swing} text={`${Math.round(swing * 100)}%`}
+          onNorm={(n) => setArp({ swing: n })} onReset={() => setArp({ swing: 0 })} />
+        <Knob label="Gate" value={arp.gate} min={0.05} max={1} norm={(arp.gate - 0.05) / 0.95} text={`${Math.round(arp.gate * 100)}%`}
+          onNorm={(n) => setArp({ gate: 0.05 + n * 0.95 })} onReset={() => setArp({ gate: 0.6 })} />
       </div>
       <div className="seg sp-seg" aria-label="Arp mode">{ARP_MODES.map((m) => <button key={m.id} className={arp.mode === m.id ? 'active' : ''} onClick={() => setArp({ mode: m.id })}>{m.label}</button>)}</div>
       <div className="seg sp-seg" aria-label="Arp rate">{ARP_RATES.map((r, i) => <button key={r.label} className={arp.rate === i ? 'active' : ''} onClick={() => setArp({ rate: i })}>{r.label}</button>)}</div>
       <div className="sp-row">
-        <div className="seg" aria-label="Octaves">{[1, 2, 3].map((o) => <button key={o} className={arp.octaves === o ? 'active' : ''} onClick={() => setArp({ octaves: o })}>{o} oct</button>)}</div>
-        <Knob label="Gate" value={arp.gate} min={0.05} max={1} norm={(arp.gate - 0.05) / 0.95} text={`${Math.round(arp.gate * 100)}%`}
-          onNorm={(n) => setArp({ gate: 0.05 + n * 0.95 })} onReset={() => setArp({ gate: 0.6 })} />
+        <div className="seg" aria-label="Octaves">{Array.from({ length: ARP_MAX_OCTAVES }, (_, i) => i + 1).map((o) => <button key={o} className={arp.octaves === o ? 'active' : ''} onClick={() => setArp({ octaves: o })}>{o} oct</button>)}</div>
       </div>
       <div className="sp-row">
         <button className={`btn small${chord.on ? ' on' : ''}`} aria-pressed={chord.on} onClick={() => setSound({ chord: { ...chord, on: !chord.on } })}>Chord memory</button>
