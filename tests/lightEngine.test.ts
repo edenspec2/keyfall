@@ -27,7 +27,9 @@ vi.mock('tone', () => {
   return {
     ...Object.fromEntries(names.map((n) => [n, kind(n)])),
     getDestination: () => any, immediate: () => 0,
-    getContext: () => ({ close: () => Promise.resolve(), rawContext: { currentTime: 0, state: 'suspended', resume: () => Promise.resolve() } }),
+    connect: (a: { connected?: unknown[] }, b: unknown) => { (a.connected ??= []).push(b) }, // Tone.connect, for the native synth's output
+    // The native synth builds browser nodes from the raw context: stand-ins that accept every call.
+    getContext: () => ({ close: () => Promise.resolve(), rawContext: { currentTime: 0, state: 'suspended', resume: () => Promise.resolve(), createGain: () => ({ gain: any, connect: any, disconnect: any }), createOscillator: () => any, createPeriodicWave: () => any } }),
     setContext: () => {},
     start: () => Promise.resolve(),
   }
@@ -76,13 +78,12 @@ describe('light engine (phones)', () => {
     // Vibrato: built on first use. A synth already playing (e-piano) is moved onto it; the piano never goes through it.
     audio.instrument = 'epiano'
     audio.noteOn(64, 90); audio.noteOff(64)
-    const epiano = of('PolySynth').at(-1)!
+    const epiano = (audio as unknown as { voices: Map<string, { output: { connected?: unknown[]; disconnect: unknown } }> }).voices.get('epiano')!
     expect(of('Vibrato').length).toBe(0)
     audio.setMod(0.5)
     expect(of('Vibrato').length).toBe(1)
     const vib = of('Vibrato')[0]
-    expect(epiano.rec.cut).toBe(true)
-    expect(epiano.rec.to.includes(vib.self)).toBe(true)
+    expect(epiano.output.connected?.at(-1)).toBe(vib.self) // re-plugged into the vibrato
     expect(vib.rec.to.includes(of('Gain')[0].self)).toBe(true) // into the chain input
     audio.setMod(0); audio.setMod(0.2)
     expect(of('Vibrato').length).toBe(1) // built once

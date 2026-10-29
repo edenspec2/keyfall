@@ -3,6 +3,7 @@ import { kit as drumKit, type Kit } from '../music/drums'
 import { toneName } from '../music/theory'
 import { defaults, effective, type Effective, type Params } from './sound'
 import { track } from '../analytics'
+import { NativeSynth, type Patch } from './nativeSynth'
 
 export type InstrumentId = 'piano' | 'epiano' | 'strings' | 'synth' | 'harmonium' | 'bansuri'
 export const INSTRUMENTS: { id: InstrumentId; label: string }[] = [
@@ -14,7 +15,7 @@ export const INSTRUMENTS: { id: InstrumentId; label: string }[] = [
   { id: 'bansuri', label: 'Bansuri flute' },
 ]
 
-type Voice = Tone.Sampler | Tone.PolySynth
+type Voice = Tone.Sampler | NativeSynth
 const RAMP = 0.04 // s: long enough to avoid zipper noise from 7-bit knob steps, short enough to feel direct
 const XFADE = 0.03 // s: switching an effect in or out
 const REVERB_XFADE = 0.15 // s: from the old reverb to a newly rendered one
@@ -368,7 +369,7 @@ class AudioEngine {
   }
   private appliedBpm = 0
 
-  /** Envelope, glide and timbre live on the voices; PolySynth.set reaches every allocated voice. */
+  /** Envelope, glide and timbre live on the voices; set() applies them from the next note. */
   private applyVoice(id: InstrumentId, v: Voice) {
     if (id !== this.inst) return
     const e = this.applied as Effective
@@ -459,7 +460,7 @@ class AudioEngine {
   /** Pitch strip: −1..1 bends the synth sounds by up to ±2 semitones. The sampled piano doesn't bend, like a real one. */
   setBend(v: number) {
     this.bendCents = Math.round(v * 200)
-    this.voices.forEach((voice) => { if (voice instanceof Tone.PolySynth) voice.set({ detune: this.bendCents }) })
+    this.voices.forEach((voice) => { if (voice instanceof NativeSynth) voice.set({ detune: this.bendCents }) })
   }
   /** Mod strip: 0..1 → vibrato depth on the synth sounds. */
   setMod(m: number) { this.mod = m; this.applyVibrato() }
@@ -544,20 +545,22 @@ class AudioEngine {
 
   private makeSynth(id: InstrumentId): Voice {
     const out = this.vibrato ?? this.chain!.input
-    const v = id === 'epiano' ? new Tone.PolySynth(Tone.FMSynth, { harmonicity: 3, modulationIndex: 6, envelope: { attack: 0.002, decay: 1.2, sustain: 0.25, release: 0.8 }, volume: -10 })
-      : id === 'strings' ? new Tone.PolySynth(Tone.AMSynth, { envelope: { attack: 0.25, decay: 0.3, sustain: 0.8, release: 1.4 }, volume: -12 })
+    const base = { kind: 'osc', count: 1, spread: 0, harmonicity: 3, modulationIndex: 0, portamento: 0 } as const
+    const patch: Patch = id === 'epiano' ? { ...base, kind: 'fm', type: 'sine', modulationIndex: 6, envelope: { attack: 0.002, decay: 1.2, sustain: 0.25, release: 0.8 }, volume: -10 }
+      : id === 'strings' ? { ...base, kind: 'am', type: 'sine', envelope: { attack: 0.25, decay: 0.3, sustain: 0.8, release: 1.4 }, volume: -12 }
       // Three stacked saws; Timbre sets their detune spread.
-      : id === 'synth' ? new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'fatsawtooth', count: 3, spread: 20 }, envelope: { attack: 0.005, decay: 0.2, sustain: 0.4, release: 0.3 }, volume: -22 })
+      : id === 'synth' ? { ...base, type: 'sawtooth', count: 3, spread: 20, envelope: { attack: 0.005, decay: 0.2, sustain: 0.4, release: 0.3 }, volume: -22 }
       // Harmonium: three slightly detuned reeds (the beating of the reed banks; Timbre sets it), a bellows swell,
       // and full sustain while the key is held. The nasal reed colour comes from its default filter and EQ.
-      : id === 'harmonium' ? new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'fatsawtooth', count: 3, spread: 12 }, envelope: { attack: 0.05, decay: 0.2, sustain: 0.9, release: 0.15 }, volume: -20 })
+      : id === 'harmonium' ? { ...base, type: 'sawtooth', count: 3, spread: 12, envelope: { attack: 0.05, decay: 0.2, sustain: 0.9, release: 0.15 }, volume: -20 }
       // Bansuri: a nearly pure, soft tone (fundamental + a few weak overtones) with a breathy swell; its natural
       // vibrato comes from applyVibrato(), its airiness from the default chorus and reverb.
-      : id === 'bansuri' ? new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'custom', partials: [1, 0.32, 0.12, 0.05, 0.02] }, envelope: { attack: 0.08, decay: 0.15, sustain: 0.85, release: 0.3 }, volume: -20 })
+      : id === 'bansuri' ? { ...base, type: 'custom', partials: [1, 0.32, 0.12, 0.05, 0.02], envelope: { attack: 0.08, decay: 0.15, sustain: 0.85, release: 0.3 }, volume: -20 }
       // piano fallback
-      : new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'triangle' }, envelope: { attack: 0.003, decay: 1.4, sustain: 0.1, release: 0.6 }, volume: -8 })
+      : { ...base, type: 'triangle', envelope: { attack: 0.003, decay: 1.4, sustain: 0.1, release: 0.6 }, volume: -8 }
+    const v = new NativeSynth(this.ctx, patch)
     v.set({ detune: this.bendCents })
-    v.maxPolyphony = 64 // default 32 drops notes under the pedal with long releases
+    v.maxPolyphony = 64 // under the pedal with long releases
     return v.connect(out)
   }
 
@@ -580,7 +583,7 @@ class AudioEngine {
   noteOn(pitch: number, vel: number) {
     const v = this.voice(this.inst, vel); if (!v) return
     // Re-striking a key that still rings (under the pedal, or on another instrument): end the old note first.
-    // A PolySynth releases only one voice per pitch, so a second attack on top would ring forever after pedal-up.
+    // A synth releases only one sounding copy per pitch, so a second attack on top would ring forever after pedal-up.
     const old = this.liveVoice.get(pitch)
     if (old) old.triggerRelease(toneName(pitch), Tone.immediate())
     this.liveVoice.set(pitch, v)
