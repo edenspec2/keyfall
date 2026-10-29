@@ -156,7 +156,7 @@ export class Session {
   }
   private play(n: NoteEvent, at: number, now: number, spb: number) {
     // After a stall (background tab, slow frame) skip notes that are already over instead of firing them at once.
-    if (at + n.dur * spb < now) return
+    if (at + n.dur * spb < now || n.silent) return
     if (n.drum !== undefined) this.out.drum?.(n.drum, at, n.vel ?? 100)
     else this.out.schedule(n.pitch, at, n.dur * spb * 0.95, n.vel ?? 80, n.instrument)
   }

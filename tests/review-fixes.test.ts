@@ -73,6 +73,14 @@ describe('reviewer fixes', () => {
     for (const g of gaps) expect(g).toBeCloseTo(4, 9)
   })
 
+  it('Create: a note goes quiet the moment its track is muted, mid-song', () => {
+    let muted = false
+    const notes = [60, 62, 64, 65].map((p, i): NoteEvent => Object.defineProperty({ pitch: p, start: i, dur: 1, hand: 'R' }, 'silent', { get: () => muted }))
+    const r = rig(); const s = new Session(lesson({ notes, countIn: 0 }), opts({ mode: 'watch' }), r.out)
+    s.start(); run(r, s, 1.5); muted = true; run(r, s, 3)
+    expect(r.scheduled.map((x) => x.pitch)).toEqual([60, 62]) // 62 was already scheduled ahead when the mute came
+  })
+
   it('a run only counts at the slowest tempo used', () => {
     const r = rig(); const s = new Session(lesson(), opts({ bpm: 40 }), r.out)
     s.start(); run(r, s, 1); s.setBpm(60)

@@ -108,8 +108,13 @@ export function Create() {
   const play = async (record: boolean) => {
     stop()
     await audio.start(); audio.setVolume(st.volume)
-    // Each track plays with its own sound; what you play live uses the "You play" sound.
-    const notes = comp.tracks.filter((t) => !t.muted).flatMap((t) => (t.drums ? t.notes : t.notes.map((n) => ({ ...n, instrument: t.instrument }))))
+    // Each track plays with its own sound; what you play live uses the "You play" sound. Sound and mute are read as each
+    // note is scheduled, so changing a track's sound or muting it applies mid-song and in the loop, not from the next Play.
+    const now = (id: string) => live.current.comp.tracks.find((t) => t.id === id)
+    const notes = comp.tracks.flatMap((t) => t.notes.map((n) => Object.defineProperties({ ...n } as NoteEvent, {
+      instrument: { get: () => (t.drums ? undefined : now(t.id)?.instrument) },
+      silent: { get: () => !!(now(t.id) ?? { muted: true }).muted }, // a deleted track goes quiet
+    })))
     const s = new Session(asLesson(comp, notes, record ? comp.timeSig[0] : 0), {
       mode: 'watch', hands: 'R', bpm: comp.bpm, metronome: st.metronome || record, loop: null, calibration: st.calibrationMs / 1000, endless: record,
       repeat: jam.get().loop,
@@ -408,7 +413,7 @@ export function Create() {
               </div>
               {!t.drums && (
                 <select value={t.instrument} onClick={(e) => e.stopPropagation()} onChange={(e) => updateTrack(i, (x) => ({ ...x, instrument: e.target.value as InstrumentId }))}
-                  aria-label={`Sound of ${t.name}`} title="This track's sound (heard from the next Play)" style={{ padding: '2px 6px' }}>
+                  aria-label={`Sound of ${t.name}`} title="This track's sound" style={{ padding: '2px 6px' }}>
                   {INSTRUMENTS.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
                 </select>
               )}

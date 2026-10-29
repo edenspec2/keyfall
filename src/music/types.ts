@@ -15,6 +15,7 @@ export interface NoteEvent {
   drum?: number // 0–7: a pad/drum hit (Kick, Snare, Closed hat, Open hat, Clap, Low tom, High tom, Crash)
   text?: string // a sung syllable shown on the note (chant lessons)
   instrument?: InstrumentId // Create: the sound of the track it belongs to; unset = the player's sound
+  silent?: boolean // Create: the note's track is muted (read as it plays, so muting works mid-song)
 }
 
 export type PracticeMode = 'watch' | 'wait' | 'rhythm' | 'free' | 'loop'
