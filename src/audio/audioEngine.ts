@@ -17,11 +17,23 @@ export const INSTRUMENTS: { id: InstrumentId; label: string }[] = [
 
 type Voice = Tone.Sampler | NativeSynth
 const RAMP = 0.04 // s: long enough to avoid zipper noise from 7-bit knob steps, short enough to feel direct
+/**
+ * Volume slider above this point stops raising the output (already at 0 dB) and instead pushes the mix into the limiter,
+ * up to PUSH_DB at full: louder, at the cost of squashing peaks. The PC mix sits ~8 dB under the phone's, so it gets more.
+ */
+const PUSH_FROM = 0.8
+const PUSH_DB = { light: 8, full: 12 }
 const XFADE = 0.03 // s: switching an effect in or out
 const REVERB_XFADE = 0.15 // s: from the old reverb to a newly rendered one
 
 /** A drum kit: what each pad plays, and every node it built (disposed together when the kit is dropped). */
 interface DrumSet { hits: ((time: number, vel: number) => void)[]; nodes: Tone.ToneAudioNode[] }
+/**
+ * Drum velocity to level: gentler than the keys' curve. Pads send low velocities unless struck hard, and the keys'
+ * curve put a velocity-50 tap ~11 dB under a full hit, which made the pads hard to hear. Here 30 → -6 dB, 100 → -1 dB.
+ */
+const padGain = (vel: number) => 0.25 + 0.75 * (Math.max(1, vel) / 127) ** 0.8
+
 /** Seconds without a drum hit before the kits are disposed. */
 const KIT_IDLE = 30
 
@@ -74,6 +86,7 @@ function bypass(node: Tone.ToneAudioNode): Bypass {
 /** The effects chain. Keys: input → drive → filter → EQ → chorus → phaser → tremolo → keys vol; drums join after it. */
 interface Chain {
   input: Tone.Gain; filter: Tone.Filter; keysVol: Tone.Volume; drumsVol: Tone.Volume
+  push: Tone.Gain // before the limiter: the top of the volume slider drives the mix into it
   fx: Fx | null // null in the light engine: phones get no effects at all
 }
 interface Fx {
@@ -245,6 +258,7 @@ class AudioEngine {
     // harshly), so a soft clipper ends the chain: straight up to 0.8, then rounded off below 1.0.
     const clip = new Tone.WaveShaper((x) => Math.sign(x) * (Math.abs(x) <= 0.8 ? Math.abs(x) : 0.8 + 0.2 * Math.tanh((Math.abs(x) - 0.8) / 0.2)), 2049).toDestination()
     const limiter = new Tone.Compressor({ threshold: -1, ratio: 20, knee: 0, attack: 0.003, release: 0.1 }).connect(clip)
+    const push = new Tone.Gain(1).connect(limiter)
     this.out = clip
     const input = new Tone.Gain()
     const filter = new Tone.Filter({ frequency: 20000, type: 'lowpass', rolloff: -12, Q: 0.7 })
@@ -256,12 +270,12 @@ class AudioEngine {
       // squeeze the range gently (the browser's compressor adds make-up gain itself) and add 8 dB, so held notes stay
       // audible. Measured offline against the earlier 3:1, 5 ms / 0.3 s setting: ringing notes duck 3.7 dB instead
       // of 9 when a new note hits (no pumping), and the 30 ms attack keeps the hammer's strike (+9.4 dB vs +6.6).
-      const phone = new Tone.Compressor({ threshold: -24, ratio: 2, knee: 12, attack: 0.03, release: 1 }).connect(new Tone.Gain(2.5).connect(limiter)) // release: 1 s is the maximum
+      const phone = new Tone.Compressor({ threshold: -24, ratio: 2, knee: 12, attack: 0.03, release: 1 }).connect(new Tone.Gain(2.5).connect(push)) // release: 1 s is the maximum
       const keysVol = new Tone.Volume(0).connect(phone), drumsVol = new Tone.Volume(0).connect(phone)
       input.connect(filter); filter.connect(keysVol)
-      return { input, filter, keysVol, drumsVol, fx: null }
+      return { input, filter, keysVol, drumsVol, push, fx: null }
     }
-    const comp = new Tone.Compressor({ threshold: -12, ratio: 3, attack: 0.005, release: 0.2 }).connect(limiter)
+    const comp = new Tone.Compressor({ threshold: -12, ratio: 3, attack: 0.005, release: 0.2 }).connect(push)
     const widener = new Tone.StereoWidener(0.5).connect(comp)
     const reverbDry = new Tone.Gain(1).connect(widener)
     const reverbGains: [Tone.Gain, Tone.Gain] = [new Tone.Gain(0).connect(widener), new Tone.Gain(0).connect(widener)]
@@ -286,7 +300,7 @@ class AudioEngine {
     const b = { drive: bypass(drive), eq: bypass(eq), phaser: bypass(phaser) }
     input.connect(b.drive.input); b.drive.output.connect(filter); filter.connect(b.eq.input); b.eq.output.connect(chorus)
     chorus.connect(b.phaser.input); b.phaser.output.connect(tremolo)
-    return { input, filter, keysVol, drumsVol, fx: { tremoloGain, drive, eq, chorus, phaser, tremolo, bypass: b, delay, widener, reverbs, reverbGains, reverbDry } }
+    return { input, filter, keysVol, drumsVol, push, fx: { tremoloGain, drive, eq, chorus, phaser, tremolo, bypass: b, delay, widener, reverbs, reverbGains, reverbDry } }
   }
 
   /** Effects at zero still cost CPU: drive, EQ and phaser leave the path (with a crossfade) while they're at zero. */
@@ -394,9 +408,11 @@ class AudioEngine {
     const kick = k(new Tone.MembraneSynth({ pitchDecay: 0.05, octaves: 6, envelope: { attack: 0.001, decay: 0.4, sustain: 0, release: 0.1 } })).connect(bus)
     const snareBody = k(new Tone.MembraneSynth({ pitchDecay: 0.02, octaves: 2, envelope: { attack: 0.001, decay: 0.12, sustain: 0 }, volume: -8 })).connect(bus)
     const snare = k(new Tone.NoiseSynth({ noise: { type: 'white' }, envelope: { attack: 0.001, decay: 0.18, sustain: 0 }, volume: -10 })).connect(k(new Tone.Filter(1800, 'highpass')).connect(bus))
-    const hat = (decay: number) => metal(this.light, { decay, release: 0.01, harmonicity: 5.1, modulationIndex: 32, resonance: 4000, octaves: 1.5, volume: -22 }, bus, nodes)
-    const closed = hat(0.05), open = hat(0.35), crash = hat(1.4)
-    const clap = k(new Tone.NoiseSynth({ noise: { type: 'pink' }, envelope: { attack: 0.002, decay: 0.16, sustain: 0 }, volume: -8 })).connect(k(new Tone.Filter(1200, 'bandpass')).connect(bus))
+    const hat = (decay: number, volume = -22) => metal(this.light, { decay, release: 0.01, harmonicity: 5.1, modulationIndex: 32, resonance: 4000, octaves: 1.5, volume }, bus, nodes)
+    // Measured: the closed hat's 50 ms tick sat ~15 dB under the open hat, and the clap (pink noise through a narrow
+    // band) ~22 dB under the snare; both raised to sit with the rest of the kit.
+    const closed = hat(0.05, -14), open = hat(0.35), crash = hat(1.4)
+    const clap = k(new Tone.NoiseSynth({ noise: { type: 'pink' }, envelope: { attack: 0.002, decay: 0.16, sustain: 0 }, volume: 12 })).connect(k(new Tone.Filter(1200, 'bandpass')).connect(bus))
     const tom = k(new Tone.MembraneSynth({ pitchDecay: 0.08, octaves: 3, envelope: { attack: 0.001, decay: 0.35, sustain: 0 }, volume: -4 })).connect(bus)
     const tomHi = k(new Tone.MembraneSynth({ pitchDecay: 0.08, octaves: 3, envelope: { attack: 0.001, decay: 0.3, sustain: 0 }, volume: -4 })).connect(bus)
     return { nodes, hits: [
@@ -451,7 +467,7 @@ class AudioEngine {
     const slot = kitId === 'kirtan' ? k + 8 : k
     const t = Math.max(time, this.now(), (this.lastHit[slot] ?? 0) + 0.01)
     this.lastHit[slot] = t
-    hit(t, this.gain(vel))
+    hit(t, padGain(vel))
   }
 
   /** Where background parts (drone, rhythm loops) join: the drums' volume, then the shared delay and reverb. */
@@ -633,7 +649,11 @@ class AudioEngine {
   }
 
   // Ramped: fader 4 drives this, and a hard step on every MIDI message zippers. -80 dB is silent enough for "0".
-  setVolume(v01: number) { Tone.getDestination().volume.rampTo(v01 <= 0 ? -80 : Math.max(-80, 20 * Math.log10(v01)), RAMP) }
+  setVolume(v01: number) {
+    Tone.getDestination().volume.rampTo(v01 <= 0 ? -80 : Math.max(-80, 20 * Math.log10(v01)), RAMP)
+    const db = Math.max(0, (v01 - PUSH_FROM) / (1 - PUSH_FROM)) * PUSH_DB[this.light ? 'light' : 'full']
+    this.chain?.push.gain.rampTo(10 ** (db / 20), RAMP)
+  }
   /** Measured output latency in seconds when the browser reports it (Chrome does). */
   get outputLatency() { return (this.ctx.outputLatency || 0) + (this.ctx.baseLatency || 0) }
 }

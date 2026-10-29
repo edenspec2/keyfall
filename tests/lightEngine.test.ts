@@ -49,7 +49,9 @@ describe('light engine (phones)', () => {
     // never finished building (a 1.2 s release left the phone silent).
     for (const c of of('Compressor')) expect([c.rec.opts?.attack, c.rec.opts?.release].every((v) => v === undefined || (v >= 0 && v <= 1))).toBe(true)
     const [lim, lift] = of('Compressor')
-    expect(of('Gain').some((g) => lift.rec.to.includes(g.self) && g.rec.to.includes(lim.self))).toBe(true)
+    // phone bus → +8 dB → the volume slider's push stage → limiter
+    const push = of('Gain').find((g) => g.rec.to.includes(lim.self))!
+    expect(of('Gain').some((g) => lift.rec.to.includes(g.self) && g.rec.to.includes(push.self))).toBe(true)
     const vols = of('Volume').filter((n) => n.rec.to.includes(lift.self))
     expect(vols.length).toBe(2) // keys and drums
     // Notes reach the keys volume through the filter only.
@@ -84,7 +86,7 @@ describe('light engine (phones)', () => {
     expect(of('Vibrato').length).toBe(1)
     const vib = of('Vibrato')[0]
     expect(epiano.output.connected?.at(-1)).toBe(vib.self) // re-plugged into the vibrato
-    expect(vib.rec.to.includes(of('Gain')[0].self)).toBe(true) // into the chain input
+    expect(vib.rec.to.includes((audio as unknown as { chain: { input: unknown } }).chain.input)).toBe(true) // into the chain input
     audio.setMod(0); audio.setMod(0.2)
     expect(of('Vibrato').length).toBe(1) // built once
     audio.instrument = 'piano'
