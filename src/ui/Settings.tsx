@@ -55,6 +55,13 @@ export function MidiDiagnostics() {
             <option value="notes">Piano notes</option>
           </select>
         </label>
+        <label className="field" title="Light makes soft taps louder; Full plays every hit at full strength">Pad touch
+          <select value={st.padTouch} onChange={(e) => settings.set({ padTouch: e.target.value as typeof st.padTouch })}>
+            <option value="light">Light (soft taps louder)</option>
+            <option value="normal">As played</option>
+            <option value="full">Full (every hit loud)</option>
+          </select>
+        </label>
         <PadLearn />
       </div>
       {m.status === 'denied' && <div className="callout bad">The browser blocked MIDI access ({m.error}). Click the icon left of the address bar → Site settings → allow <b>MIDI devices</b>, then reload.</div>}

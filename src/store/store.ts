@@ -4,6 +4,7 @@ import type { KirtanSettings } from '../audio/kirtan'
 import type { Kit } from '../music/drums'
 import type { ArpSettings, ChordSettings } from '../audio/arp'
 import type { CCMode } from '../audio/controls'
+import type { PadTouch } from '../midi/midiInput'
 import type { Params, Preset, Target } from '../audio/sound'
 import type { Attempt } from '../engine/feedback'
 import type { NoteEvent } from '../music/types'
@@ -47,6 +48,7 @@ export interface Settings {
   midiChannel: number
   padMode: 'drums' | 'ignore' | 'notes' // what the MiniLab pads (channel 10) do
   padBase: number // note number pad 1 sends
+  padTouch: PadTouch // lift light pad taps, or play every hit at full strength
   volume: number
   instrument: InstrumentId
   labels: LabelMode
@@ -68,6 +70,7 @@ export const settings = persisted<Settings>('settings', {
   midiChannel: 0,
   padMode: 'drums',
   padBase: 36,
+  padTouch: 'light',
   volume: 0.8,
   instrument: 'piano',
   labels: 'name',

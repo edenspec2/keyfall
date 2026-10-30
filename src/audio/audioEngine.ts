@@ -452,9 +452,27 @@ class AudioEngine {
     ] }
   }
 
+  /** A sound the player recorded or loaded for pad `k` (see padSamples.ts); null gives the pad its drum back. */
+  setPadSample(k: number, s: { rate: number; data: Float32Array<ArrayBuffer> } | null) { this.padSamples[k] = s; this.padBuffers[k] = null }
+  private padSamples: ({ rate: number; data: Float32Array<ArrayBuffer> } | null)[] = []
+  private padBuffers: (AudioBuffer | null)[] = [] // made on first play, by the engine's context (Tone's wraps the browser's)
+
   /** Play drum `k` (0–7) of the current kit (or `kitId`). Each drum is monophonic, so start times must strictly increase. */
-  drum(k: number, time = this.now(), vel = 100, kitId: Kit = drumKit.id) {
+  drum(k: number, time = this.now(), vel = 100, kitId?: Kit) {
     if (!this.started) return
+    // The player's own sound replaces the pad's drum; background rhythms name their kit and keep its drums.
+    const own = kitId === undefined ? this.padSamples[k] : null
+    if (own) {
+      let buf = this.padBuffers[k]
+      if (!buf) { buf = this.padBuffers[k] = this.ctx.createBuffer(1, own.data.length, own.rate); buf.copyToChannel(own.data, 0) }
+      const src = this.ctx.createBufferSource(), g = this.ctx.createGain()
+      src.buffer = buf; g.gain.value = padGain(vel)
+      src.connect(g); Tone.connect(g, this.chain!.drumsVol)
+      src.onended = () => g.disconnect()
+      src.start(Math.max(time, this.now()))
+      return
+    }
+    kitId ??= drumKit.id
     const hit = (kitId === 'kirtan' ? (this.kirtanKit ??= this.makeKirtanKit()) : (this.kit ??= this.makeKit())).hits[k]
     if (!hit) return
     // A built kit costs audio time even when silent (~6 % of a PC's audio thread): after a quiet spell, drop both

@@ -3,7 +3,9 @@ import { kirtan } from '../audio/kirtan'
 import { kit } from '../music/drums'
 import { allSounds, handleCC } from '../audio/controls'
 import { perform } from '../audio/perform'
+import { bindingOf, ccPresses } from '../midi/binding'
 import { midi } from '../midi/midiInput'
+import { initPadSamples, padHit, sampleControl } from '../audio/padSamples'
 import type { Trail } from '../render/pianoRenderer'
 import { settings, sound } from '../store/store'
 import { initStats } from '../analytics'
@@ -32,6 +34,8 @@ export function initLiveInput() {
   }
   midi.on((e) => {
     if (e.type === 'on' || e.type === 'pad') wake()
+    const b = bindingOf(e)
+    if (b && sampleControl(b)) return // the Sample button (or the press teaching it) makes no sound
     if (e.type === 'on') {
       perform.noteOn(e.pitch, e.vel) // straight to audio.noteOn unless arp/chord memory are on in free play
       trails.push({ pitch: e.pitch, on: performance.now(), off: null })
@@ -39,18 +43,23 @@ export function initLiveInput() {
     } else if (e.type === 'off') {
       perform.noteOff(e.pitch)
       for (let i = trails.length - 1; i >= 0; i--) if (trails[i].pitch === e.pitch && trails[i].off === null) { trails[i].off = performance.now(); break }
-    } else if (e.type === 'pad') { audio.drum(e.pad, undefined, e.vel); padHits[e.pad] = performance.now() + 140 }
+    } else if (e.type === 'pad') {
+      if (!padHit(e.pad)) audio.drum(e.pad, undefined, e.vel) // while sampling, a pad hit can end the take or take it
+      padHits[e.pad] = performance.now() + 140
+    }
     else if (e.type === 'bend') audio.setBend(e.value)
     else if (e.type === 'mod') audio.setMod(e.value)
     else audio.setSustain(e.down)
   })
-  midi.onCC((e) => handleCC(e.cc, e.raw))
+  const press = ccPresses()
+  midi.onCC((e) => { const b = press(e); if (!(b && sampleControl(b))) handleCC(e.cc, e.raw) })
+  void initPadSamples()
   window.addEventListener('unhandledrejection', (e) => { audio.lastError = String(e.reason?.message ?? e.reason) })
   initStats()
 
   const applySettings = () => {
     const s = settings.get()
-    midi.filter = { port: s.midiPort, channel: s.midiChannel, pads: s.padMode, padBase: s.padBase }
+    midi.filter = { port: s.midiPort, channel: s.midiChannel, pads: s.padMode, padBase: s.padBase, padTouch: s.padTouch }
     // Only on a real change: other settings writes (metronome, labels, zoom) must not undo a lesson's own instrument.
     if (s.instrument !== lastInstrument) { lastInstrument = s.instrument; audio.instrument = s.instrument }
     if (s.padKit !== lastPadKit) { lastPadKit = s.padKit; kit.id = s.padKit } // only on a change: a kirtan lesson sets its own kit

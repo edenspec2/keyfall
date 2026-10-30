@@ -106,6 +106,9 @@ describe('pads', () => {
   })
   it('respects a detected pad-1 note, "ignore" and "piano notes"', () => {
     expect(routePads(pad(48), f({ padBase: 48 }))).toMatchObject({ pad: 0 })
+    expect(routePads(parseMessage([0x99, 36, 20], 0, 'p'), f({ padTouch: 'light' }))).toMatchObject({ vel: 50 }) // soft taps lifted
+    expect(routePads(parseMessage([0x99, 36, 127], 0, 'p'), f({ padTouch: 'light' }))).toMatchObject({ vel: 127 })
+    expect(routePads(parseMessage([0x99, 36, 20], 0, 'p'), f({ padTouch: 'full' }))).toMatchObject({ vel: 127 })
     expect(routePads(pad(36), f({ pads: 'ignore' }))).toBeNull()
     expect(routePads(pad(36), f({ pads: 'notes' }))).toMatchObject({ type: 'on', pitch: 36 })
   })

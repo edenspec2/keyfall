@@ -525,13 +525,13 @@ details summary:hover { color: var(--text); }
 
 /* "Tap to turn on sound": always on phones (the sidebar hint is icon-only there), and anywhere once keys are
    played while the sound is still off. */
-.sound-gate {
+.sound-gate, .sample-status {
   position: fixed; left: 50%; bottom: max(18px, env(safe-area-inset-bottom)); z-index: 50; transform: translateX(-50%);
   display: none; align-items: center; gap: 8px; padding: 12px 20px; border-radius: 99px; border: 0; pointer-events: none;
   font-weight: 650; font-size: 1rem; color: white; background: var(--grad-accent); box-shadow: var(--shadow-accent), var(--shadow-2);
   animation: drop-in var(--dur-base) var(--ease-spring);
 }
-.sound-gate.show { display: flex; }
+.sound-gate.show, .sample-status { display: flex; }
 @media (max-width: 900px), (max-height: 500px) { .sound-gate { display: flex; } }
 
 /* ───────────────────────── Motion ───────────────────────── */
@@ -645,7 +645,7 @@ h1, h2, h3, .brand { font-weight: 600; letter-spacing: 0; }
 .btn:active:not(:disabled) { transform: translateY(2px) scale(0.98); box-shadow: 0 1px 0 var(--line-strong); }
 .btn.small { padding: 4px 12px; }
 .btn.primary { color: #4a2c47; text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6); box-shadow: 0 3px 0 #e79cc1, var(--shadow-accent); }
-.sound-gate { color: #4a2c47; } /* plum ink: white is unreadable on the pastel gradient */
+.sound-gate, .sample-status { color: #4a2c47; } /* plum ink: white is unreadable on the pastel gradient */
 .btn.primary:hover:not(:disabled) { box-shadow: 0 4px 0 #e79cc1, var(--shadow-accent); }
 .btn.primary:active:not(:disabled) { box-shadow: 0 1px 0 #e79cc1; }
 .btn.ghost, .btn.ghost:hover:not(:disabled), .btn.ghost:active:not(:disabled) { box-shadow: none; }

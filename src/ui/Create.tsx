@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { audio, INSTRUMENTS, type InstrumentId } from '../audio/audioEngine'
 import { quantize, Recorder } from '../engine/recorder'
 import { Session, type SessionState } from '../engine/session'
+import { bindingName, ccPresses, sameControl, type Binding } from '../midi/binding'
 import { midi } from '../midi/midiInput'
 import { accompaniment, detectKey, suggestChords } from '../music/harmony'
 import { parseMidiFile, toMidiFile } from '../music/midiFile'
@@ -18,11 +19,8 @@ const ROW = 14, KEYW = 52
 
 // Jam: Loop repeats the song so you can play over it; three actions can be taught to buttons on the MIDI keyboard.
 export type JamAction = 'play' | 'record' | 'loop'
-export type Binding = { channel: number; cc?: number; note?: number; pad?: number }
 const JAM_LABELS: Record<JamAction, string> = { play: '▶ Play / stop', record: '● Record / stop', loop: '🔁 Loop on / off' }
 export const jam = persisted('jam', { loop: false, keys: {} as Partial<Record<JamAction, Binding>> })
-const sameControl = (a: Binding, b: Binding) => a.channel === b.channel && a.cc === b.cc && a.note === b.note && a.pad === b.pad
-const bindingName = (b: Binding) => `${b.cc !== undefined ? `CC ${b.cc}` : b.pad !== undefined ? `Pad ${b.pad + 1}` : noteNameOct(b.note!)} · ch ${b.channel}`
 
 export const newComposition = (): Composition => ({
   id: uid(), name: 'Untitled idea', bpm: 90, timeSig: [4, 4], updated: Date.now(),
@@ -143,12 +141,8 @@ export function Create() {
       return !!a
     }
     const held = new Set<number>() // keys used as controls: their note-off must not reach the recorder either
-    const lastCC = new Map<string, number>()
-    const offCC = midi.onCC((e) => {
-      const k = `${e.channel}:${e.cc}`, was = lastCC.get(k) ?? 0
-      lastCC.set(k, e.raw)
-      if (e.raw > 0 && was === 0) control({ channel: e.channel, cc: e.cc }) // a press, not every step of a turning knob
-    })
+    const press = ccPresses()
+    const offCC = midi.onCC((e) => { const b = press(e); if (b) control(b) })
     const offNotes = midi.on((e) => {
       // shortcut: a key or pad taught as a control still makes its sound (live.ts plays it first); fine for a spare pad or key.
       if (e.type === 'on' && control({ channel: e.channel, note: e.pitch })) { held.add(e.pitch); return }

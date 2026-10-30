@@ -24,7 +24,16 @@ export interface MidiFilter {
   channel: number // 1..16, or 0 = omni (keys only; pads are recognised by channel 10)
   pads: 'drums' | 'ignore' | 'notes' // MiniLab pads send notes on channel 10 by default
   padBase: number // note number of pad 1 (36 on the MiniLab 3 unless changed)
+  padTouch?: PadTouch // how hard a pad hit lands; unset = as sent
 }
+export type PadTouch = 'light' | 'normal' | 'full'
+
+/**
+ * Pad velocity after the touch setting. MiniLab pads send low velocities unless struck hard; 'light' lifts soft taps
+ * (20 → 50, 40 → 71) and keeps full hits full; 'full' plays every hit at full strength.
+ */
+export const padVel = (vel: number, touch: PadTouch = 'normal') =>
+  touch === 'full' ? 127 : touch === 'light' ? Math.max(1, Math.round(127 * Math.sqrt(vel / 127))) : vel
 
 /** Pad number 0–7 for a pad note; the second bank (base + 8 …) maps onto the same 8 drums. */
 export const padIndex = (pitch: number, base: number) => (((pitch - base) % 8) + 8) % 8
@@ -63,7 +72,7 @@ export const passesFilter = (e: InputEvent, f: MidiFilter, portId: string) =>
 export function routePads(e: InputEvent | null, f: MidiFilter): InputEvent | null {
   if (!e || (e.type !== 'on' && e.type !== 'off') || e.channel !== 10 || f.pads === 'notes') return e
   if (f.pads === 'ignore' || e.type === 'off') return null // a drum hit has no length
-  return { type: 'pad', pad: padIndex(e.pitch, f.padBase), vel: e.vel, channel: 10, time: e.time, source: e.source }
+  return { type: 'pad', pad: padIndex(e.pitch, f.padBase), vel: padVel(e.vel, f.padTouch), channel: 10, time: e.time, source: e.source }
 }
 
 export class MidiInput {

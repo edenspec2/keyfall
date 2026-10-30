@@ -12,6 +12,7 @@ import { identifyChord } from '../music/theory'
 import { ccMap, settings, sound, userPresets, useStore, type SoundState } from '../store/store'
 import { Knob } from './Knob'
 import './SoundPanel.css'
+import { PadSamples } from './PadSamples'
 
 const useInst = () => useSyncExternalStore(settings.subscribe, () => settings.get().instrument)
 const setSound = (patch: Partial<SoundState>) => sound.set(patch)
@@ -281,6 +282,7 @@ export function SoundPanel({ compact }: { compact?: boolean }) {
       {synth && <Section title="Synth"><div className="sp-grid">{inst === 'synth' && k('glide')}{k('vibratoRate')}</div></Section>}
       <Section title="Mix" open={!compact}><div className="sp-grid">{k('master')}{k('keysVol')}{k('drumsVol')}</div></Section>
       <KirtanSection />
+      <Section title="Pad sounds: record your own"><PadSamples /></Section>
       <PerformSection />
       <LearnSection learnMode={learnMode} setLearnMode={setLearnMode} />
       {!audio.started && <p className="sp-hint">Sound starts with your first key or click; your settings are applied then.</p>}

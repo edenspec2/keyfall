@@ -15,6 +15,7 @@ import { Practice } from './ui/Practice'
 import { ProgressPage } from './ui/ProgressPage'
 import { MidiStatusPill, Settings } from './ui/Settings'
 import { KnobReadout, SoundPanel } from './ui/SoundPanel'
+import { PadSampleStatus } from './ui/PadSamples'
 import { progress } from './store/store'
 import { setRenderTheme } from './render/pianoRenderer'
 import { Mascot } from './ui/Mascot'
@@ -136,6 +137,7 @@ export default function App() {
         <SoundPanel compact />
       </aside>
       <KnobReadout />
+      <PadSampleStatus />
       {/* A label touches pass through, not a button: on a phone it sat over the keys, so the first touch on a key
           turned the sound on but never reached the key. Any tap starts the sound (the gesture listeners above). */}
       {!soundOn && <div className={`sound-gate${needTap ? ' show' : ''}`} role="status">🔇 Tap anywhere to turn on sound</div>}
